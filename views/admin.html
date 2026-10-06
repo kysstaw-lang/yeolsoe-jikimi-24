@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="same-origin">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+<title>열쇠지킴이 24시 어드민</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #eef1f7;
+    --card: #ffffff;
+    --card-2: #f4f5fb;
+    --ink: #14171f;
+    --muted: #8a8fa3;
+    --muted-2: #c3c7d6;
+    --accent: #4f63f0;
+    --accent-hover: #3c4fdb;
+    --accent-soft: #e8ebfd;
+    --border: #e8eaf2;
+    --shadow: rgba(31, 41, 82, 0.1);
+
+    --new-fg: #b45309;
+    --new-bg: #fef3c7;
+    --contacted-fg: #7c3aed;
+    --contacted-bg: #ede9fe;
+    --done-fg: #15803d;
+    --done-bg: #dcfce7;
+    --danger: #d33;
+
+    --font: "Gothic A1", "Apple SD Gothic Neo", sans-serif;
+    --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; }
+  button, input, select, textarea { font-family: var(--font); }
+
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, .gu:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .page {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 36px 20px 60px;
+  }
+
+  /* ---------- login ---------- */
+
+  .auth-wrap {
+    min-height: 70vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+
+  .auth-card {
+    width: 100%;
+    max-width: 380px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 32px 28px 26px;
+    box-shadow: 0 30px 60px -24px var(--shadow);
+  }
+
+  .auth-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .auth-icon svg { width: 22px; height: 22px; }
+
+  .auth-card h1 { margin: 18px 0 0; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.01em; }
+  .auth-card .auth-sub { margin-top: 6px; font-size: 0.86rem; color: var(--muted); line-height: 1.6; }
+  .auth-form { margin-top: 22px; }
+
+  .auth-error { min-height: 1.3em; margin: 2px 0 10px; font-size: 0.82rem; color: var(--danger); }
+
+  .auth-submit {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 13px;
+    font-size: 0.96rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .auth-submit:hover { background: var(--accent-hover); }
+  .auth-submit:disabled { background: var(--muted-2); cursor: not-allowed; }
+
+  .auth-hint { margin-top: 16px; font-size: 0.76rem; color: var(--muted); line-height: 1.6; text-align: center; }
+
+  .auth-home { display: block; margin-top: 14px; text-align: center; }
+
+  /* ---------- header ---------- */
+
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .home-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .home-link:hover { color: var(--accent); }
+  .home-link svg { width: 14px; height: 14px; }
+
+  .logout {
+    background: none;
+    border: 1.5px solid var(--border);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .logout:hover { border-color: var(--muted); color: var(--ink); }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 1.3rem;
+    letter-spacing: -0.01em;
+  }
+  .brand svg { width: 22px; height: 22px; color: var(--accent); }
+
+  .private-note {
+    margin-top: 6px;
+    font-size: 0.82rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .private-note svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+  .menu {
+    margin-top: 22px;
+    display: inline-flex;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px;
+    gap: 2px;
+  }
+  .menu button {
+    border: none;
+    background: none;
+    padding: 9px 18px;
+    border-radius: 999px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .menu button .n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.78rem; opacity: 0.7; }
+  .menu button.active { background: var(--ink); color: #fff; }
+
+  .summary { display: flex; gap: 10px; flex-wrap: wrap; }
+  .summary-chip {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 16px;
+    text-align: center;
+    min-width: 68px;
+  }
+  .summary-chip .n { font-family: var(--font-mono); font-size: 1.2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .summary-chip .l { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+
+  .inq-top { margin-top: 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+  /* ---------- add form ---------- */
+
+  .add-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--ink);
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 11px 18px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .add-toggle:hover { background: var(--accent); }
+  .add-toggle svg { width: 14px; height: 14px; }
+
+  .add-panel {
+    margin-top: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    display: none;
+  }
+  .add-panel.open { display: block; }
+
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    background: var(--card-2);
+    border: 1.5px solid transparent;
+    border-radius: 10px;
+    padding: 9px 11px;
+    font-size: 0.92rem;
+    color: var(--ink);
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: #fff;
+  }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 480px) { .field-row { grid-template-columns: 1fr; } }
+
+  .add-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .btn-ghost {
+    background: none;
+    border: 1.5px solid var(--border);
+    color: var(--muted);
+    border-radius: 10px;
+    padding: 9px 16px;
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-ghost:hover { border-color: var(--muted); color: var(--ink); }
+  .btn-ghost.armed { border-color: var(--danger); color: var(--danger); }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 9px 18px;
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
+
+  /* ---------- filter tabs ---------- */
+
+  .tabs {
+    margin-top: 24px;
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    background: none;
+    border: none;
+    padding: 10px 4px;
+    margin-right: 18px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab .n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.8rem; color: var(--muted-2); }
+  .tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+  .tab.active .n { color: var(--accent); }
+
+  /* ---------- list ---------- */
+
+  .list { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+
+  .row {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+  }
+
+  .row-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .row-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .badge {
+    font-size: 0.74rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+    border: none;
+  }
+  .badge.new { color: var(--new-fg); background: var(--new-bg); }
+  .badge.contacted { color: var(--contacted-fg); background: var(--contacted-bg); }
+  .badge.done { color: var(--done-fg); background: var(--done-bg); }
+
+  .row-date { font-family: var(--font-mono); font-size: 0.76rem; color: var(--muted); }
+
+  .row-del {
+    background: none;
+    border: none;
+    color: var(--muted-2);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .row-del:hover { color: var(--danger); background: #fee; }
+  .row-del.armed { color: var(--danger); background: #fee; }
+  .row-del svg { width: 15px; height: 15px; display: block; }
+
+  .row-body { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px) { .row-body { grid-template-columns: 1fr; } }
+
+  .row-field .k { font-size: 0.72rem; color: var(--muted); font-weight: 700; margin-bottom: 3px; }
+  .row-field .v { font-size: 0.9rem; }
+  .row-field .v.mono { font-family: var(--font-mono); }
+  .row-field .v a { text-decoration: none; }
+  .row-field .v a:hover { color: var(--accent); }
+
+  .row-message { margin-top: 12px; }
+  .row-message .k { font-size: 0.72rem; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+  .row-message .v { font-size: 0.92rem; line-height: 1.6; white-space: pre-wrap; }
+
+  .row-note { margin-top: 10px; }
+  .row-note textarea {
+    width: 100%;
+    background: var(--card-2);
+    border: 1.5px solid transparent;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.84rem;
+    color: var(--muted);
+    resize: vertical;
+    min-height: 36px;
+  }
+  .row-note textarea:focus { outline: none; border-color: var(--accent); color: var(--ink); background: #fff; }
+
+  .empty {
+    margin-top: 40px;
+    text-align: center;
+    color: var(--muted);
+    padding: 60px 20px;
+    background: var(--card);
+    border: 1px dashed var(--border);
+    border-radius: 16px;
+    font-size: 0.92rem;
+  }
+
+  .db-warning {
+    margin: 24px auto 0;
+    max-width: 480px;
+    background: #fef3c7;
+    color: #92400e;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 0.86rem;
+    line-height: 1.6;
+  }
+
+  /* ---------- service areas ---------- */
+
+  .areas-head {
+    margin-top: 24px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .areas-head h2 { margin: 0; font-size: 1.15rem; font-weight: 800; }
+  .areas-count { margin-top: 4px; font-size: 0.84rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .areas-actions { display: flex; gap: 8px; }
+
+  .sync-banner {
+    margin-top: 16px;
+    border-radius: 14px;
+    padding: 14px 16px;
+    font-size: 0.86rem;
+    line-height: 1.65;
+  }
+  .sync-banner.ok { background: var(--done-bg); color: var(--done-fg); font-weight: 700; }
+  .sync-banner.pending { background: var(--new-bg); color: var(--new-fg); }
+  .sync-banner.pending b { font-weight: 800; }
+  .sync-banner .sub { display: block; margin-top: 4px; font-size: 0.8rem; opacity: 0.9; }
+
+  .areas-grid {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 760px) { .areas-grid { grid-template-columns: 1fr; } }
+
+  .areas-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 11px 14px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+    text-align: left;
+  }
+  .switch-row.on { color: var(--ink); border-color: var(--accent-soft); background: #fff; }
+
+  .sw {
+    width: 34px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--muted-2);
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.15s ease;
+  }
+  .sw i {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.15s ease;
+  }
+  .switch-row.on .sw { background: var(--accent); }
+  .switch-row.on .sw i { transform: translateX(14px); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sw, .sw i { transition: none; }
+  }
+
+  .areas-map {
+    background: linear-gradient(175deg, #f9fafd, #edf0f9);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px 16px 14px;
+    position: sticky;
+    top: 16px;
+  }
+  .areas-map svg { width: 100%; height: auto; display: block; }
+
+  .gu {
+    fill: #dfe3ef;
+    stroke: #ffffff;
+    stroke-width: 1.6;
+    stroke-linejoin: round;
+    cursor: pointer;
+    transition: fill 0.15s ease;
+  }
+  .gu:hover { fill: #ced3e6; }
+  .gu.on { fill: var(--accent); }
+  .gu.on:hover { fill: var(--accent-hover); }
+
+  .sync-banner.info { background: var(--accent-soft); color: var(--accent-hover); font-weight: 600; }
+  .sync-banner a { text-decoration: underline; }
+
+  .map-note { margin-top: 10px; text-align: center; font-size: 0.74rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div id="authView" class="auth-wrap" hidden>
+  <div class="auth-card">
+    <div class="auth-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+    </div>
+    <h1 id="authTitle">어드민 로그인</h1>
+    <p class="auth-sub" id="authSub">문의 목록과 서비스 지역을 관리하려면 로그인하세요.</p>
+
+    <form class="auth-form" id="authForm" autocomplete="off">
+      <div class="field">
+        <label for="authUser">아이디</label>
+        <input id="authUser" type="text" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="authPass">비밀번호</label>
+        <input id="authPass" type="password" autocomplete="current-password" required>
+      </div>
+      <div class="auth-error" id="authError" role="alert"></div>
+      <button type="submit" class="auth-submit" id="authSubmit">로그인</button>
+    </form>
+    <a class="home-link auth-home" href="/" style="justify-content:center;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      홈으로 (홍보 사이트)
+    </a>
+  </div>
+</div>
+
+<div id="appView" class="page" hidden>
+  <div class="bar">
+    <a class="home-link" href="/">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      홈으로 (홍보 사이트)
+    </a>
+    <button class="logout" id="logoutBtn">로그아웃</button>
+  </div>
+
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+    열쇠지킴이 24시 어드민
+  </div>
+  <div class="private-note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+    관리자 전용 페이지입니다 · 로그인이 필요해요
+  </div>
+
+  <nav class="menu" id="menu" aria-label="어드민 메뉴">
+    <button type="button" class="active" data-view="inquiries">문의 목록 <span class="n" id="menu-inq">0</span></button>
+    <button type="button" data-view="areas">서비스 지역 <span class="n" id="menu-areas">0/25</span></button>
+  </nav>
+
+  <!-- ===== 문의 목록 ===== -->
+  <section id="inquiriesView">
+    <div class="inq-top">
+      <button class="add-toggle" id="addToggle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        새 문의 추가
+      </button>
+      <div class="summary" id="summary"></div>
+    </div>
+
+    <div class="add-panel" id="addPanel">
+      <form id="addForm">
+        <div class="field-row">
+          <div class="field">
+            <label for="a-region">지역</label>
+            <input id="a-region" type="text" placeholder="예: 서울시 강남구 ○○동">
+          </div>
+          <div class="field">
+            <label for="a-contact">연락처</label>
+            <input id="a-contact" type="tel" placeholder="010-1234-5678">
+          </div>
+        </div>
+        <div class="field">
+          <label for="a-message">문의사항</label>
+          <textarea id="a-message" placeholder="어떤 문의인가요?"></textarea>
+        </div>
+        <div class="add-actions">
+          <button type="button" class="btn-ghost" id="addCancel">취소</button>
+          <button type="submit" class="btn-primary">추가</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-status="all">전체 <span class="n" id="cnt-all">0</span></button>
+      <button class="tab" data-status="신규">신규 <span class="n" id="cnt-new">0</span></button>
+      <button class="tab" data-status="연락함">연락함 <span class="n" id="cnt-contacted">0</span></button>
+      <button class="tab" data-status="완료">완료 <span class="n" id="cnt-done">0</span></button>
+    </div>
+
+    <div class="list" id="list"></div>
+    <div class="empty" id="empty" style="display:none;">아직 문의가 없습니다. 위 버튼으로 직접 추가하거나, 이메일로 받은 문의를 옮겨 적어두세요.</div>
+  </section>
+
+  <!-- ===== 서비스 지역 ===== -->
+  <section id="areasView" hidden>
+    <div class="areas-head">
+      <div>
+        <h2>서비스 지역 관리</h2>
+        <div class="areas-count" id="areasCount"></div>
+      </div>
+      <div class="areas-actions">
+        <button type="button" class="btn-ghost" id="allOn">전체 켜기</button>
+        <button type="button" class="btn-ghost" id="allOff">전체 끄기</button>
+      </div>
+    </div>
+
+    <div class="sync-banner info" id="syncBanner"></div>
+
+    <div class="areas-grid">
+      <div class="areas-list" id="areasList"></div>
+      <div class="areas-map">
+        <svg id="areasMap" viewBox="-16 -16 672 558.4" role="img" aria-label="서울시 25개 구 서비스 지역 지도 (클릭해서 켜고 끄기)" xmlns="http://www.w3.org/2000/svg">
+          <g>
+@@GU_PATHS@@
+          </g>
+        </svg>
+        <div class="map-note">지도에서 구를 눌러도 켜고 끌 수 있어요</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+@@ADMIN_SCRIPT@@
+</body>
+</html>

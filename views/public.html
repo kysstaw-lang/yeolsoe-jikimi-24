@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="서울 열쇠·도어락 출장 서비스 열쇠지킴이 24시. 서비스 지역을 지도에서 확인하고 간편하게 문의하세요.">
+<meta property="og:title" content="열쇠지킴이 24시">
+<meta property="og:description" content="열쇠·도어락 출장 서비스. 서비스 지역을 지도에서 바로 확인하세요.">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+<title>열쇠지킴이 24시</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;600;700;800&display=swap">
+<style>
+  :root {
+    --bg: #eef1f7;
+    --card: #ffffff;
+    --card-2: #f4f5fb;
+    --ink: #14171f;
+    --muted: #8a8fa3;
+    --muted-2: #c3c7d6;
+    --accent: #4f63f0;
+    --accent-hover: #3c4fdb;
+    --accent-soft: #e8ebfd;
+    --border: #e8eaf2;
+    --shadow: rgba(31, 41, 82, 0.14);
+
+    --font: "Gothic A1", "Apple SD Gothic Neo", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  p { margin: 0; }
+  h1, h2 { margin: 0; text-wrap: balance; }
+
+  button, input, select, textarea { font-family: var(--font); }
+
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, path:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .page {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 56px 20px 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ---------- hero text ---------- */
+
+  .hero-text {
+    text-align: center;
+    max-width: 580px;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .eyebrow::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .hero-text h1 {
+    font-size: clamp(1.7rem, 4vw, 2.5rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.35;
+    margin-top: 16px;
+  }
+
+  .hero-text .sub {
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 1.02rem;
+    line-height: 1.7;
+  }
+
+  /* ---------- app card ---------- */
+
+  .app-card {
+    margin-top: 40px;
+    width: 100%;
+    max-width: 1040px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    box-shadow: 0 40px 80px -20px var(--shadow);
+    display: flex;
+    overflow: hidden;
+  }
+
+  @media (max-width: 800px) {
+    .app-card { flex-direction: column; }
+  }
+
+  /* ---------- sidebar ---------- */
+
+  .sidebar {
+    width: 340px;
+    flex-shrink: 0;
+    padding: 26px 24px 22px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+
+  @media (max-width: 800px) {
+    .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+  }
+
+  .sidebar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-weight: 800;
+    font-size: 1.05rem;
+    letter-spacing: -0.01em;
+  }
+  .logo svg { width: 19px; height: 19px; color: var(--accent); flex-shrink: 0; }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--card-2);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .icon-btn svg { width: 16px; height: 16px; }
+  .icon-btn:hover { background: var(--accent-soft); color: var(--accent); }
+
+  .section-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 26px;
+  }
+  .section-title-row h2 { font-size: 1.12rem; font-weight: 800; }
+
+  .inline-form { margin-top: 14px; }
+
+  .form-note { font-size: 0.76rem; color: var(--muted); text-align: center; margin-top: 10px; }
+
+  .sidebar-footer {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 0.78rem;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .sidebar-footer a:hover { color: var(--accent); }
+
+  /* ---------- map panel ---------- */
+
+  .map-panel {
+    flex: 1;
+    background: linear-gradient(175deg, #f9fafd, #edf0f9);
+    display: flex;
+    flex-direction: column;
+    padding: 26px 30px 30px;
+    gap: 20px;
+  }
+
+  /* district groups, now shown above the map */
+
+  .map-districts { width: 100%; }
+
+  .group { margin-top: 18px; }
+  .group:first-child { margin-top: 0; }
+
+  .group-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .group-head b { color: var(--ink); font-weight: 800; font-size: 0.92rem; }
+  .group.is-dim .group-head b { color: var(--muted); }
+
+  .chip-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.7);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--ink);
+    opacity: 0.55;
+  }
+  .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted-2); flex-shrink: 0; }
+  .chip.active { background: var(--accent-soft); color: var(--accent); opacity: 1; }
+  .chip.active .dot { background: var(--accent); }
+
+  .chip-empty { font-size: 0.8rem; color: var(--muted); margin-top: 10px; }
+
+  .map-visual {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    min-height: 300px;
+  }
+
+  .kr-map { width: 100%; max-width: 440px; height: auto; display: block; }
+
+  .gu {
+    fill: #dfe3ef;
+    stroke: #ffffff;
+    stroke-width: 1.6;
+    stroke-linejoin: round;
+    cursor: pointer;
+    transition: fill 0.18s ease;
+  }
+  .gu:hover, .gu:focus { fill: #ced3e6; outline: none; }
+  .gu-active { fill: var(--accent); stroke: #ffffff; stroke-width: 2; }
+  .gu-active:hover, .gu-active:focus { fill: var(--accent-hover); }
+
+  .gu-label {
+    font-family: var(--font);
+    font-size: 15px;
+    font-weight: 800;
+    fill: #ffffff;
+    pointer-events: none;
+  }
+
+  .map-legend {
+    display: flex;
+    gap: 16px;
+    font-size: 0.74rem;
+    color: var(--muted);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .legend-dot.on { background: var(--accent); }
+  .legend-dot.off { background: var(--muted-2); }
+
+  @media (max-width: 800px) {
+    .map-visual { min-height: 260px; }
+  }
+
+  /* ---------- footer ---------- */
+
+  footer.site {
+    margin-top: 30px;
+    width: 100%;
+    max-width: 1040px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  footer.site a:hover { color: var(--accent); }
+
+  .brand-mark {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .footer-note {
+    width: 100%;
+    max-width: 1040px;
+    margin-top: 8px;
+    font-size: 0.72rem;
+    color: var(--muted-2);
+  }
+
+  /* ---------- inline inquiry form ---------- */
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    background: var(--card-2);
+    border: 1.5px solid transparent;
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 0.94rem;
+    color: var(--ink);
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: #fff;
+  }
+  .field textarea { resize: vertical; min-height: 72px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 420px) { .field-row { grid-template-columns: 1fr; } }
+
+  .submit-btn {
+    width: 100%;
+    margin-top: 6px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 13px;
+    font-size: 0.98rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .submit-btn:hover { background: var(--accent-hover); }
+
+  .confirm-msg {
+    display: none;
+    margin-top: 14px;
+    background: var(--accent-soft);
+    color: var(--accent-hover);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.82rem;
+  }
+  .confirm-msg.show { display: block; }
+  .confirm-msg.error { background: #fdecea; color: #b42318; }
+  .submit-btn:disabled { opacity: 0.6; cursor: wait; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="hero-text">
+    <div class="eyebrow">열쇠 · 도어락 출장 서비스</div>
+    <h1>서비스 지역을 지도에서 바로 확인하세요</h1>
+    <p class="sub">@@HERO_SUB@@</p>
+  </div>
+
+  <div class="app-card">
+    <div class="sidebar">
+      <div class="sidebar-head">
+        <div class="logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+          열쇠지킴이 24시
+        </div>
+        <a class="icon-btn" href="tel:@@PHONE_TEL@@" aria-label="전화 걸기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
+        </a>
+      </div>
+
+      <div class="section-title-row">
+        <h2>간단 문의</h2>
+      </div>
+
+      <form id="inquiryForm" class="inline-form">
+        <div class="field">
+          <label for="f-region">지역</label>
+          <input id="f-region" name="region" type="text" placeholder="예: 서울시 강남구 ○○동">
+        </div>
+        <div class="field">
+          <label for="f-contact">연락처</label>
+          <input id="f-contact" name="contact" type="tel" required placeholder="010-1234-5678">
+        </div>
+        <div class="field">
+          <label for="f-message">문의사항</label>
+          <textarea id="f-message" name="message" placeholder="어떤 도움이 필요하신가요?"></textarea>
+        </div>
+        <input type="text" name="website" id="f-website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+        <button type="submit" class="submit-btn">문의 보내기</button>
+        <div class="form-note">보내주신 내용은 확인 후 연락드립니다</div>
+        <div class="confirm-msg" id="confirmMsg"></div>
+      </form>
+
+      <div class="sidebar-footer">
+        <span>@@HOURS@@</span>
+        <a href="tel:@@PHONE_TEL@@">@@PHONE@@</a>
+      </div>
+    </div>
+
+    <div class="map-panel">
+      <div class="map-districts">
+@@GROUPS@@
+      </div>
+
+      <div class="map-visual">
+      <svg class="kr-map" viewBox="-16 -16 672.0 558.4" role="img" aria-label="서울시 25개 구 서비스 지역 지도" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="liftShadow" x="-60%" y="-60%" width="220%" height="220%">
+            <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#4f63f0" flood-opacity="0.35"/>
+          </filter>
+        </defs>
+        <g class="map-top">
+@@GU_PATHS@@
+        </g>
+@@GU_LABELS@@
+      </svg>
+
+      <div class="map-legend">
+        <div class="legend-item"><span class="legend-dot on"></span>서비스 가능</div>
+        <div class="legend-item"><span class="legend-dot off"></span>준비중</div>
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site">
+    <span id="brandMark" class="brand-mark">열쇠지킴이 24시 · 서울 출장</span>
+    <a href="tel:@@PHONE_TEL@@">@@PHONE@@</a>
+    <span>@@HOURS@@</span>
+    <span>© @@YEAR@@</span>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var form = document.getElementById('inquiryForm');
+    var btn = form.querySelector('.submit-btn');
+    var msg = document.getElementById('confirmMsg');
+
+    function show(text, isError) {
+      msg.textContent = text;
+      msg.className = 'confirm-msg show' + (isError ? ' error' : '');
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var payload = {
+        region: document.getElementById('f-region').value.trim(),
+        contact: document.getElementById('f-contact').value.trim(),
+        message: document.getElementById('f-message').value.trim(),
+        website: document.getElementById('f-website').value
+      };
+      btn.disabled = true;
+      btn.textContent = '보내는 중…';
+      fetch('/api/inquiries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; });
+      }).then(function (res) {
+        if (res.ok) {
+          form.reset();
+          show('문의가 접수되었어요. 확인 후 연락드리겠습니다.', false);
+        } else {
+          show(res.j.error || '전송하지 못했어요. 잠시 후 다시 시도하거나 전화로 문의해 주세요.', true);
+        }
+      }).catch(function () {
+        show('전송하지 못했어요. 잠시 후 다시 시도하거나 전화로 문의해 주세요.', true);
+      }).then(function () {
+        btn.disabled = false;
+        btn.textContent = '문의 보내기';
+      });
+    });
+
+    var clicks = 0, timer = null;
+    document.getElementById('brandMark').addEventListener('click', function () {
+      clicks++;
+      clearTimeout(timer);
+      timer = setTimeout(function () { clicks = 0; }, 900);
+      if (clicks >= 3) { clicks = 0; window.location.assign('/admin'); }
+    });
+  })();
+</script>
+</body>
+</html>

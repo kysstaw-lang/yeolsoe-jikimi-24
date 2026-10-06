@@ -1,0 +1,16 @@
+{
+  "name": "yeolsoe-jikimi-24",
+  "version": "1.0.0",
+  "private": true,
+  "description": "열쇠지킴이 24시 - 열쇠·도어락 출장 서비스 사이트와 어드민",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
+  }
+}
