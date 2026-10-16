@@ -1,16 +1,14 @@
 <!doctype html>
-<html lang="ko">
+<html lang="{{htmlLang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="서울 열쇠·도어락 출장 서비스 열쇠지킴이 24시. 서비스 지역을 지도에서 확인하고 간편하게 문의하세요.">
-<meta property="og:title" content="열쇠지킴이 24시">
-<meta property="og:description" content="열쇠·도어락 출장 서비스. 서비스 지역을 지도에서 바로 확인하세요.">
+@@SEO@@
 <style>body{margin:0}[hidden]{display:none!important}</style>
-<title>열쇠지킴이 24시</title>
+<title>@@TITLE@@</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <style>
   :root {
     --bg: #eef1f7;
@@ -28,6 +26,8 @@
     --font: "Gothic A1", "Apple SD Gothic Neo", sans-serif;
   }
 
+  html[lang="en"] { --font: "Plus Jakarta Sans", "Gothic A1", "Apple SD Gothic Neo", sans-serif; }
+
   * { box-sizing: border-box; }
 
   body {
@@ -35,6 +35,8 @@
     color: var(--ink);
     font-family: var(--font);
     -webkit-font-smoothing: antialiased;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
   }
 
   a { color: inherit; text-decoration: none; }
@@ -182,7 +184,8 @@
     color: var(--muted);
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 8px;
+    line-height: 1.7;
   }
   .sidebar-footer a:hover { color: var(--accent); }
 
@@ -240,6 +243,34 @@
 
   .chip-empty { font-size: 0.8rem; color: var(--muted); margin-top: 10px; }
 
+  .chip { white-space: nowrap; }
+  html[lang="en"] .chip-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+
+  button.chip { border: none; font-family: inherit; cursor: pointer; text-align: left; transition: box-shadow 0.15s ease, background 0.15s ease; }
+  button.chip:hover { background: #dde2fb; }
+  button.chip.is-open { box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+  .area-details { margin-top: 12px; }
+  .area-detail {
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 18px 20px 16px;
+    box-shadow: 0 18px 40px -24px var(--shadow);
+  }
+  .area-detail-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .area-detail h3 { margin: 0; font-size: 1.02rem; font-weight: 800; }
+  .area-detail .cnt { margin-left: 8px; font-size: 0.76rem; font-weight: 600; color: var(--muted); }
+  .area-close { background: none; border: none; font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--muted); cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+  .area-close:hover { color: var(--ink); background: var(--card-2); }
+  .area-intro { margin: 12px 0 0; border-left: 2px solid var(--accent); padding-left: 12px; color: #5b6075; font-size: 0.84rem; line-height: 1.8; }
+  .area-headline { margin: 12px 0 0; font-size: 0.86rem; font-weight: 700; color: var(--accent); line-height: 1.6; }
+  .area-detail .dong-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .area-detail .dong-chips span { border: 1px solid var(--border); border-radius: 8px; padding: 5px 9px; font-size: 0.74rem; color: #5b6075; background: var(--card-2); }
+  .area-more { display: inline-block; margin-top: 14px; font-size: 0.84rem; font-weight: 700; color: var(--accent); border-bottom: 1px solid currentColor; padding-bottom: 1px; }
+  .area-more:hover { color: var(--accent-hover); }
+
+
   .map-visual {
     flex: 1;
     display: flex;
@@ -263,6 +294,7 @@
   .gu:hover, .gu:focus { fill: #ced3e6; outline: none; }
   .gu-active { fill: var(--accent); stroke: #ffffff; stroke-width: 2; }
   .gu-active:hover, .gu-active:focus { fill: var(--accent-hover); }
+  .gu-active.is-open { stroke: #1f2a8a; stroke-width: 3; }
 
   .gu-label {
     font-family: var(--font);
@@ -294,24 +326,22 @@
 
   /* ---------- footer ---------- */
 
-  footer.site {
-    margin-top: 30px;
-    width: 100%;
-    max-width: 1040px;
-    display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
-  footer.site a:hover { color: var(--accent); }
+  @@FOOTER_CSS@@
 
-  .brand-mark {
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-  }
+  .tab-nav { display: inline-flex; gap: 4px; background: #fff; border: 1px solid var(--border); border-radius: 999px; padding: 4px; margin-top: 22px; }
+  .tab-nav a { display: inline-flex; align-items: center; gap: 7px; padding: 9px 20px; border-radius: 999px; font-weight: 700; font-size: 0.9rem; color: var(--muted); }
+  .tab-nav a:hover { color: var(--accent); }
+  .tab-nav a.on { background: var(--ink); color: #fff; }
+  .tab-nav .cnt { font-size: 0.74rem; font-weight: 700; opacity: 0.75; font-variant-numeric: tabular-nums; }
+
+  .lang-row { width: 100%; max-width: 1040px; display: flex; justify-content: flex-end; margin-bottom: 22px; }
+  .lang-switch { display: inline-flex; gap: 2px; background: #fff; border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+  .lang-switch a { padding: 5px 13px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; color: var(--muted); }
+  .lang-switch a:hover { color: var(--accent); }
+  .lang-switch a[aria-current="true"] { background: var(--ink); color: #fff; }
+
+
+
 
   .footer-note {
     width: 100%;
@@ -374,10 +404,12 @@
 </head>
 <body>
 <div class="page">
+  <div class="lang-row">@@LANG_SWITCH@@</div>
   <div class="hero-text">
-    <div class="eyebrow">열쇠 · 도어락 출장 서비스</div>
-    <h1>서비스 지역을 지도에서 바로 확인하세요</h1>
+    <div class="eyebrow">{{eyebrow}}</div>
+    <h1>{{h1}}</h1>
     <p class="sub">@@HERO_SUB@@</p>
+    @@TABS@@
   </div>
 
   <div class="app-card">
@@ -385,39 +417,41 @@
       <div class="sidebar-head">
         <div class="logo">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-          열쇠지킴이 24시
+          {{brand}}
         </div>
-        <a class="icon-btn" href="tel:@@PHONE_TEL@@" aria-label="전화 걸기">
+        <a class="icon-btn" href="tel:@@PHONE_TEL@@" aria-label="{{callAria}}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
         </a>
       </div>
 
-      <div class="section-title-row">
-        <h2>간단 문의</h2>
+      <div class="section-title-row" id="inquiry">
+        <h2>{{inquiryTitle}}</h2>
       </div>
 
       <form id="inquiryForm" class="inline-form">
         <div class="field">
-          <label for="f-region">지역</label>
-          <input id="f-region" name="region" type="text" placeholder="예: 서울시 강남구 ○○동">
+          <label for="f-region">{{labelRegion}}</label>
+          <input id="f-region" name="region" type="text" placeholder="{{phRegion}}">
         </div>
         <div class="field">
-          <label for="f-contact">연락처</label>
+          <label for="f-contact">{{labelPhone}}</label>
           <input id="f-contact" name="contact" type="tel" required placeholder="010-1234-5678">
         </div>
         <div class="field">
-          <label for="f-message">문의사항</label>
-          <textarea id="f-message" name="message" placeholder="어떤 도움이 필요하신가요?"></textarea>
+          <label for="f-message">{{labelMessage}}</label>
+          <textarea id="f-message" name="message" placeholder="{{phMessage}}"></textarea>
         </div>
         <input type="text" name="website" id="f-website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
-        <button type="submit" class="submit-btn">문의 보내기</button>
-        <div class="form-note">보내주신 내용은 확인 후 연락드립니다</div>
+        <button type="submit" class="submit-btn">{{submit}}</button>
+        <div class="form-note">{{formNote}}</div>
         <div class="confirm-msg" id="confirmMsg"></div>
       </form>
 
       <div class="sidebar-footer">
+        <span>{{labelBrandName}} | @@BIZ_NAME@@</span>
+        <span>{{labelRep}} | @@OWNER@@</span>
+        <span>{{labelPhone}} | <a href="tel:@@PHONE_TEL@@">@@PHONE@@</a></span>
         <span>@@HOURS@@</span>
-        <a href="tel:@@PHONE_TEL@@">@@PHONE@@</a>
       </div>
     </div>
 
@@ -427,7 +461,7 @@
       </div>
 
       <div class="map-visual">
-      <svg class="kr-map" viewBox="-16 -16 672.0 558.4" role="img" aria-label="서울시 25개 구 서비스 지역 지도" xmlns="http://www.w3.org/2000/svg">
+      <svg class="kr-map" viewBox="-16 -16 672.0 558.4" role="img" aria-label="{{mapAria}}" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <filter id="liftShadow" x="-60%" y="-60%" width="220%" height="220%">
             <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#4f63f0" flood-opacity="0.35"/>
@@ -440,23 +474,19 @@
       </svg>
 
       <div class="map-legend">
-        <div class="legend-item"><span class="legend-dot on"></span>서비스 가능</div>
-        <div class="legend-item"><span class="legend-dot off"></span>준비중</div>
+        <div class="legend-item"><span class="legend-dot on"></span>{{legendOn}}</div>
+        <div class="legend-item"><span class="legend-dot off"></span>{{legendOff}}</div>
       </div>
       </div>
     </div>
   </div>
 
-  <footer class="site">
-    <span id="brandMark" class="brand-mark">열쇠지킴이 24시 · 서울 출장</span>
-    <a href="tel:@@PHONE_TEL@@">@@PHONE@@</a>
-    <span>@@HOURS@@</span>
-    <span>© @@YEAR@@</span>
-  </footer>
+  @@FOOTER@@
 </div>
 
 <script>
   (function () {
+    var I18N = @@I18N_JSON@@;
     var form = document.getElementById('inquiryForm');
     var btn = form.querySelector('.submit-btn');
     var msg = document.getElementById('confirmMsg');
@@ -475,27 +505,61 @@
         website: document.getElementById('f-website').value
       };
       btn.disabled = true;
-      btn.textContent = '보내는 중…';
+      btn.textContent = I18N.sending;
       fetch('/api/inquiries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       }).then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; });
+        return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, j: j }; });
       }).then(function (res) {
         if (res.ok) {
           form.reset();
-          show('문의가 접수되었어요. 확인 후 연락드리겠습니다.', false);
+          show(I18N.success, false);
         } else {
-          show(res.j.error || '전송하지 못했어요. 잠시 후 다시 시도하거나 전화로 문의해 주세요.', true);
+          show(res.status === 400 ? I18N.phone : res.status === 429 ? I18N.rate : I18N.error, true);
         }
       }).catch(function () {
-        show('전송하지 못했어요. 잠시 후 다시 시도하거나 전화로 문의해 주세요.', true);
+        show(I18N.error, true);
       }).then(function () {
         btn.disabled = false;
-        btn.textContent = '문의 보내기';
+        btn.textContent = I18N.submit;
       });
     });
+
+    var details = Array.prototype.slice.call(document.querySelectorAll('.area-detail'));
+    var chips = Array.prototype.slice.call(document.querySelectorAll('button.chip[data-slug]'));
+    var mapPaths = Array.prototype.slice.call(document.querySelectorAll('.gu-active'));
+
+    function openArea(slug, scroll) {
+      var panel = document.getElementById('detail-' + slug);
+      var already = panel && !panel.hidden;
+      details.forEach(function (p) { p.hidden = true; });
+      chips.forEach(function (c) { c.classList.remove('is-open'); c.setAttribute('aria-expanded', 'false'); });
+      mapPaths.forEach(function (p) { p.classList.remove('is-open'); });
+      if (!panel || already) return;
+      panel.hidden = false;
+      chips.forEach(function (c) {
+        if (c.getAttribute('data-slug') === slug) { c.classList.add('is-open'); c.setAttribute('aria-expanded', 'true'); }
+      });
+      mapPaths.forEach(function (p) { if (p.getAttribute('data-slug') === slug) p.classList.add('is-open'); });
+      if (scroll) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    chips.forEach(function (c) {
+      c.addEventListener('click', function () { openArea(c.getAttribute('data-slug'), false); });
+    });
+    mapPaths.forEach(function (p) {
+      p.addEventListener('click', function () { openArea(p.getAttribute('data-slug'), true); });
+      p.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openArea(p.getAttribute('data-slug'), true); }
+      });
+    });
+    details.forEach(function (p) {
+      var x = p.querySelector('[data-close]');
+      if (x) x.addEventListener('click', function () { openArea(p.id.replace('detail-', ''), false); });
+    });
+    if (location.hash && /^#detail-/.test(location.hash)) openArea(location.hash.slice(8), true);
 
     var clicks = 0, timer = null;
     document.getElementById('brandMark').addEventListener('click', function () {

@@ -8,6 +8,16 @@ var currentView = 'inquiries';
 var activeAreas = [];
 var pollTimer = null;
 var savedTimer = null;
+var contentItems = [];
+var contentSel = null;
+var contentLoaded = false;
+var drafts = {};
+var translatorName = '';
+var reviews = [];
+var rvSel = null;
+var rvDrafts = {};
+var rvLoaded = false;
+var rvUploading = 0;
 
 function $(id) { return document.getElementById(id); }
 
@@ -92,6 +102,13 @@ $('authForm').addEventListener('submit', function (e) {
 $('logoutBtn').addEventListener('click', function () {
   api('POST', '/api/logout', {}).catch(function () {}).then(function () {
     docs = [];
+    contentItems = [];
+    contentLoaded = false;
+    drafts = {};
+    reviews = [];
+    rvLoaded = false;
+    rvDrafts = {};
+    rvSel = null;
     showAuth();
   });
 });
@@ -130,6 +147,10 @@ function setView(v) {
   currentView = v;
   $('inquiriesView').hidden = v !== 'inquiries';
   $('areasView').hidden = v !== 'areas';
+  $('contentView').hidden = v !== 'content';
+  $('reviewsView').hidden = v !== 'reviews';
+  if (v === 'reviews' && !rvLoaded) loadReviews().catch(function () {});
+  if (v === 'content' && !contentLoaded) loadContent().catch(function () {});
   document.querySelectorAll('#menu button').forEach(function (b) {
     b.classList.toggle('active', b.getAttribute('data-view') === v);
   });
@@ -350,6 +371,391 @@ function renderAreas() {
   });
   document.querySelectorAll('#areasMap .gu').forEach(function (g) {
     g.classList.toggle('on', !!on[g.getAttribute('data-name')]);
+  });
+}
+
+/* ---------- per-district content ---------- */
+
+var CE_FIELDS = ['intro', 'headline', 'body', 'description'];
+
+function loadContent() {
+  return api('GET', '/api/admin/area-content').then(function (j) {
+    contentItems = j.items || [];
+    translatorName = j.translator || '';
+    contentLoaded = true;
+    if (!contentSel && contentItems.length) {
+      var firstLive = contentItems.find(function (i) { return i.active; });
+      contentSel = (firstLive || contentItems[0]).slug;
+    }
+    renderContentList();
+    renderEditor();
+  });
+}
+
+function writtenCount() {
+  return contentItems.filter(function (i) { return i.custom; }).length;
+}
+
+function renderContentList() {
+  $('menu-content').textContent = writtenCount() + '/' + (contentItems.length || GU_NAMES.length);
+  $('contentList').innerHTML = contentItems.map(function (i) {
+    return '<button type="button" class="content-item' + (i.slug === contentSel ? ' selected' : '') + '" data-slug="' + esc(i.slug) + '" role="tab" aria-selected="' + (i.slug === contentSel) + '">' +
+      '<span>' + esc(i.name) + '</span><span class="tags">' +
+      (i.custom ? '<span class="tag-written">작성</span>' : '') +
+      (i.active ? '<span class="dot-live" title="서비스 중"></span>' : '') +
+      '</span></button>';
+  }).join('');
+}
+
+function currentItem() {
+  return contentItems.find(function (i) { return i.slug === contentSel; });
+}
+
+function readEditor() {
+  var out = {};
+  CE_FIELDS.forEach(function (f) { var el = $('ce-' + f); out[f] = el ? el.value : ''; });
+  return out;
+}
+
+function draftKey(item) { return item.slug; }
+
+function savedValues(item) {
+  var c = item.custom || {};
+  return { intro: c.intro || '', headline: c.headline || '', body: c.body || '', description: c.description || '' };
+}
+
+var TRANSLATOR_LABEL = { deepl: 'DeepL', google: 'Google 번역', anthropic: 'Claude', mymemory: '무료 번역(MyMemory)' };
+
+function englishPreview(item) {
+  var en = item.english;
+  var has = en && (en.intro || en.headline || en.body || en.description);
+  if (!has) return '<div class="ce-en-empty">저장하면 영어 사이트용 번역이 자동으로 만들어져요.</div>';
+  var rows = [['소개 문단', en.intro], ['강조 문구', en.headline], ['추가 안내', en.body], ['검색 결과 설명', en.description]]
+    .filter(function (r) { return r[1]; })
+    .map(function (r) { return '<div class="ce-en-row"><div class="k">' + r[0] + '</div><div class="v">' + esc(r[1]) + '</div></div>'; })
+    .join('');
+  return rows;
+}
+
+function renderEditor() {
+  var item = currentItem();
+  if (!item) { $('contentEditor').innerHTML = ''; return; }
+  var vals = drafts[draftKey(item)] || savedValues(item);
+  var d = item.defaults;
+  $('contentEditor').innerHTML =
+    '<div class="ce-head"><h3>' + esc(item.name) + '</h3>' +
+      '<span class="ce-pill ' + (item.active ? 'live' : 'off') + '">' + (item.active ? '서비스 중' : '준비 중') + '</span>' +
+      (item.active ? '<a href="/area/' + esc(item.slug) + '" target="_blank" rel="noopener">상세 페이지 보기</a>' : '') +
+    '</div>' +
+    '<div class="field"><label for="ce-intro">소개 문단<span class="ce-hint">홈 카드와 상세 페이지 맨 위에 나와요</span></label>' +
+      '<textarea id="ce-intro" rows="4" maxlength="1200" placeholder="' + esc(d.intro) + '">' + esc(vals.intro) + '</textarea></div>' +
+    '<div class="field"><label for="ce-headline">강조 문구<span class="ce-hint">파란색으로 눈에 띄게 나와요</span></label>' +
+      '<textarea id="ce-headline" rows="2" maxlength="240" placeholder="' + esc(d.headline) + '">' + esc(vals.headline) + '</textarea></div>' +
+    '<div class="field"><label for="ce-body">추가 안내<span class="ce-hint">상세 페이지에만 나와요 · 빈 줄을 넣으면 문단이 나뉘어요</span></label>' +
+      '<textarea id="ce-body" rows="9" maxlength="6000" placeholder="예) 이 지역에서 자주 받는 문의, 작업 사례, 출장 방식, 안내 사항 등을 자유롭게 적어 주세요.">' + esc(vals.body) + '</textarea></div>' +
+    '<div class="field"><label for="ce-description">검색 결과 설명<span class="ce-count" id="ce-desc-count"></span><span class="ce-hint">구글 검색 결과에 나오는 문장 · 120자 안팎 권장</span></label>' +
+      '<textarea id="ce-description" rows="2" maxlength="240" placeholder="' + esc(d.description) + '">' + esc(vals.description) + '</textarea></div>' +
+    '<div class="ce-actions">' +
+      '<button type="button" class="btn-ghost" id="ce-load">자동 문구 불러오기</button>' +
+      '<button type="button" class="btn-ghost" id="ce-reset">기본 문구로 되돌리기</button>' +
+      '<span class="spacer"></span><span class="ce-saved" id="ce-saved"></span>' +
+      '<button type="button" class="btn-primary" id="ce-save">저장</button>' +
+    '</div>' +
+    '<div class="ce-note">비워 둔 칸은 자동 문구가 그대로 쓰여요. 서비스 중인 구만 홈과 상세 페이지에 나옵니다.<br>' +
+      '저장하면 영어 사이트(English)에는 이 글이 <b>자동으로 번역</b>되어 나와요' + (translatorName ? ' · 번역: ' + esc(TRANSLATOR_LABEL[translatorName] || translatorName) : '') + '.</div>' +
+    '<details class="ce-en"><summary>영어로 자동 번역된 내용 보기 (읽기 전용)</summary>' + englishPreview(item) +
+      (item.active ? '<a class="ce-en-link" href="/en/area/' + esc(item.slug) + '" target="_blank" rel="noopener">영어 상세 페이지 보기</a>' : '') + '</details>';
+  updateDescCount();
+}
+
+function updateDescCount() {
+  var el = $('ce-description');
+  if (el) $('ce-desc-count').textContent = el.value.length + '자';
+}
+
+$('contentList').addEventListener('click', function (e) {
+  var b = e.target.closest('.content-item');
+  if (!b) return;
+  var cur = currentItem();
+  if (cur && $('ce-intro')) drafts[draftKey(cur)] = readEditor();
+  contentSel = b.getAttribute('data-slug');
+  renderContentList();
+  renderEditor();
+});
+
+$('contentEditor').addEventListener('input', function () {
+  var cur = currentItem();
+  if (cur) drafts[draftKey(cur)] = readEditor();
+  updateDescCount();
+  var s = $('ce-saved');
+  if (s) s.textContent = '';
+});
+
+function saveContent(values, done) {
+  var item = currentItem();
+  if (!item) return;
+  var saveBtn = $('ce-save');
+  var msg = $('ce-saved');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장·번역 중…'; }
+  if (msg) { msg.style.color = ''; msg.textContent = ''; }
+  api('PUT', '/api/admin/area-content/' + encodeURIComponent(item.slug), values).then(function (j) {
+    item.custom = j.custom;
+    item.english = j.english;
+    delete drafts[draftKey(item)];
+    renderContentList();
+    renderEditor();
+    var s = $('ce-saved');
+    if (!s) return;
+    var t = j.translation || {};
+    if (t.status === 'failed') {
+      s.style.color = '#b45309';
+      s.textContent = '저장했어요 · 영어 번역은 실패했어요 (다시 저장하면 재시도해요)';
+    } else {
+      s.textContent = done || (t.status === 'ok' ? '✓ 저장했어요 · 영어 번역도 완료' : '✓ 저장했어요');
+    }
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(function () { var x = $('ce-saved'); if (x) x.textContent = ''; }, 6000);
+  }).catch(function () {
+    var s = $('ce-saved');
+    if (s) { s.style.color = 'var(--danger)'; s.textContent = '저장하지 못했어요. 다시 시도해 주세요.'; }
+    var b = $('ce-save');
+    if (b) { b.disabled = false; b.textContent = '저장'; }
+  });
+}
+
+$('contentEditor').addEventListener('click', function (e) {
+  var item = currentItem();
+  if (!item) return;
+  if (e.target.closest('#ce-save')) {
+    saveContent(readEditor());
+  } else if (e.target.closest('#ce-load')) {
+    ['intro', 'headline', 'description'].forEach(function (f) {
+      var el = $('ce-' + f);
+      if (el && !el.value.trim()) el.value = item.defaults[f];
+    });
+    drafts[draftKey(item)] = readEditor();
+    updateDescCount();
+  } else if (e.target.closest('#ce-reset')) {
+    var btn = $('ce-reset');
+    armOrRun(btn, '기본 문구로 되돌리기', '한 번 더 누르면 작성한 내용이 지워져요', function () {
+      saveContent({ intro: '', headline: '', body: '', description: '' }, '✓ 기본 문구로 되돌렸어요');
+    });
+  }
+});
+
+/* ---------- work reviews ---------- */
+
+var SERVICE_OPTIONS = [['', '선택 안 함'], ['install', '도어락 설치·교체'], ['key', '열쇠 제작·복사'], ['repair', '잠금장치 수리'], ['unlock', '잠금 해제'], ['other', '기타']];
+var MAX_PHOTOS = 12;
+
+function todayStr() {
+  var d = new Date();
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+}
+
+function loadReviews() {
+  return api('GET', '/api/admin/reviews').then(function (j) {
+    reviews = j.items || [];
+    rvLoaded = true;
+    if (rvSel === null && reviews.length) rvSel = reviews[0].id;
+    renderRvList();
+    renderRvEditor();
+  });
+}
+
+function rvDraftFor(id) {
+  if (rvDrafts[id]) return rvDrafts[id];
+  if (id === 'new') return { title: '', body: '', region: '', service: '', postedAt: todayStr(), published: true, photos: [] };
+  var item = reviews.find(function (r) { return r.id === id; });
+  if (!item) return { title: '', body: '', region: '', service: '', postedAt: todayStr(), published: true, photos: [] };
+  return { title: item.title, body: item.body, region: item.region, service: item.service, postedAt: item.postedAt, published: item.published, photos: item.photos.slice() };
+}
+
+function renderRvList() {
+  $('menu-reviews').textContent = reviews.length;
+  var rows = [];
+  if (rvSel === 'new') rows.push('<button type="button" class="rv-item selected" data-id="new"><span class="th"></span><span class="tx"><div class="t">새 후기</div><div class="d">작성 중</div></span></button>');
+  reviews.forEach(function (r) {
+    rows.push('<button type="button" class="rv-item' + (r.id === rvSel ? ' selected' : '') + '" data-id="' + r.id + '">' +
+      '<span class="th">' + (r.photos[0] ? '<img src="/uploads/' + esc(r.photos[0]) + '" alt="">' : '') + '</span>' +
+      '<span class="tx"><div class="t">' + esc(r.title) + '</div><div class="d">' + esc(r.postedAt) + (r.published ? '' : ' · <span class="off">비공개</span>') + '</div></span></button>');
+  });
+  $('rvList').innerHTML = rows.length ? rows.join('') : '<div class="rv-empty-list">아직 작성한 후기가 없어요. “새 후기 쓰기”를 눌러 시작하세요.</div>';
+}
+
+function renderPhotos() {
+  var d = rvDraftFor(rvSel);
+  var html = d.photos.map(function (f, i) {
+    return '<div class="rv-ph" data-f="' + esc(f) + '"><img src="/uploads/' + esc(f) + '" alt="">' +
+      (i === 0 ? '<span class="main">대표</span>' : '') +
+      '<div class="ctl"><button type="button" data-act="left" aria-label="앞으로">←</button><button type="button" data-act="del" aria-label="삭제">✕</button><button type="button" data-act="right" aria-label="뒤로">→</button></div></div>';
+  }).join('');
+  if (d.photos.length < MAX_PHOTOS) html += '<label class="rv-add">+ 사진<br>추가<input type="file" id="rv-file" accept="image/*" multiple hidden></label>';
+  $('rv-photos').innerHTML = html;
+}
+
+function renderRvEditor() {
+  if (rvSel === null) {
+    $('rvEditor').innerHTML = '<div class="rv-empty-list">왼쪽에서 후기를 고르거나 “새 후기 쓰기”를 눌러 주세요.</div>';
+    return;
+  }
+  var d = rvDraftFor(rvSel);
+  var isNew = rvSel === 'new';
+  var svc = SERVICE_OPTIONS.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === d.service ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('');
+  var gus = '<option value="">선택 안 함</option>' + GU_NAMES.map(function (n) { return '<option value="' + n + '"' + (n === d.region ? ' selected' : '') + '>' + n + '</option>'; }).join('');
+  $('rvEditor').innerHTML =
+    '<div class="ce-head"><h3>' + (isNew ? '새 작업 후기' : '작업 후기 수정') + '</h3>' +
+      (!isNew && d.published ? '<a href="/reviews/' + rvSel + '" target="_blank" rel="noopener">홈페이지에서 보기</a>' : '') + '</div>' +
+    '<div class="field"><label for="rv-title">제목</label><input id="rv-title" type="text" maxlength="120" value="' + esc(d.title) + '" placeholder="예) 강남구 역삼동 아파트 디지털 도어락 교체"></div>' +
+    '<div class="field-row"><div class="field"><label for="rv-date">작업 날짜</label><input id="rv-date" type="date" value="' + esc(d.postedAt) + '"></div>' +
+      '<div class="field"><label for="rv-service">작업 종류</label><select id="rv-service">' + svc + '</select></div></div>' +
+    '<div class="field"><label for="rv-region">지역 (구)</label><select id="rv-region">' + gus + '</select></div>' +
+    '<div class="field"><label for="rv-body">내용</label><textarea id="rv-body" rows="9" maxlength="8000" placeholder="어떤 상황이었고 어떻게 해결했는지 적어 주세요. 빈 줄을 넣으면 문단이 나뉘어요.">' + esc(d.body) + '</textarea></div>' +
+    '<div class="field"><label>사진<span class="ce-hint">최대 12장 · 첫 번째 사진이 대표 사진이에요 · 올릴 때 자동으로 줄여서 저장돼요</span></label><div class="rv-photos" id="rv-photos"></div><div class="ce-note" id="rv-upmsg" style="margin-top:8px"></div></div>' +
+    '<label class="rv-pub"><input type="checkbox" id="rv-pub"' + (d.published ? ' checked' : '') + '> 홈페이지에 공개</label>' +
+    '<div class="ce-actions">' + (isNew ? '' : '<button type="button" class="btn-ghost" id="rv-del">삭제</button>') +
+      '<span class="spacer"></span><span class="ce-saved" id="rv-saved"></span><button type="button" class="btn-primary" id="rv-save">저장</button></div>' +
+    '<div class="ce-note">저장하면 영어 사이트에는 제목과 내용이 자동으로 번역되어 나와요. 사진의 위치 정보 등은 올릴 때 제거돼요.</div>';
+  renderPhotos();
+}
+
+function readRvForm() {
+  var d = rvDraftFor(rvSel);
+  d.title = $('rv-title').value;
+  d.postedAt = $('rv-date').value || todayStr();
+  d.service = $('rv-service').value;
+  d.region = $('rv-region').value;
+  d.body = $('rv-body').value;
+  d.published = $('rv-pub').checked;
+  rvDrafts[rvSel] = d;
+  return d;
+}
+
+function selectReview(id) {
+  if ($('rv-title')) readRvForm();
+  rvSel = id;
+  renderRvList();
+  renderRvEditor();
+}
+
+$('rvNew').addEventListener('click', function () { selectReview('new'); $('rv-title').focus(); });
+$('rvList').addEventListener('click', function (e) {
+  var b = e.target.closest('.rv-item');
+  if (!b) return;
+  var id = b.getAttribute('data-id');
+  selectReview(id === 'new' ? 'new' : Number(id));
+});
+
+$('rvEditor').addEventListener('input', function (e) { if (e.target.id && e.target.id.indexOf('rv-') === 0 && e.target.id !== 'rv-file') readRvForm(); });
+$('rvEditor').addEventListener('change', function (e) {
+  if (e.target.id === 'rv-pub' || e.target.id === 'rv-service' || e.target.id === 'rv-region' || e.target.id === 'rv-date') { readRvForm(); return; }
+  if (e.target.id === 'rv-file') uploadPhotos(Array.prototype.slice.call(e.target.files));
+});
+
+function shrink(file) {
+  return new Promise(function (resolve, reject) {
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      var s = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+      var w = Math.max(1, Math.round(img.naturalWidth * s));
+      var h = Math.max(1, Math.round(img.naturalHeight * s));
+      var c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      var ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      c.toBlob(function (b) { if (b) resolve(b); else reject(new Error('encode')); }, 'image/jpeg', 0.82);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('decode')); };
+    img.src = url;
+  });
+}
+
+async function uploadPhotos(files) {
+  var id = rvSel;
+  var d = rvDraftFor(id);
+  var msg = $('rv-upmsg');
+  var failed = [];
+  rvUploading++;
+  for (var i = 0; i < files.length; i++) {
+    if (d.photos.length >= MAX_PHOTOS) { failed.push('사진은 최대 ' + MAX_PHOTOS + '장까지예요'); break; }
+    if (msg && rvSel === id) msg.textContent = '사진 올리는 중… (' + (i + 1) + '/' + files.length + ')';
+    try {
+      var blob = await shrink(files[i]);
+      var r = await fetch('/api/admin/uploads', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'image/jpeg' }, body: blob });
+      if (r.status === 401) { showAuth(); rvUploading--; return; }
+      var j = await r.json().catch(function () { return {}; });
+      if (!r.ok) throw new Error(j.error || 'upload');
+      d.photos.push(j.file);
+      rvDrafts[id] = d;
+      if (rvSel === id) renderPhotos();
+    } catch (err) {
+      failed.push(files[i].name);
+    }
+  }
+  rvUploading--;
+  var m = $('rv-upmsg');
+  if (m && rvSel === id) m.textContent = failed.length ? '올리지 못한 사진: ' + failed.join(', ') + ' (JPG·PNG 사진을 사용해 주세요)' : '';
+}
+
+$('rvEditor').addEventListener('click', function (e) {
+  var ctl = e.target.closest('.rv-ph button');
+  if (ctl) {
+    var d = readRvForm();
+    var f = ctl.closest('.rv-ph').getAttribute('data-f');
+    var i = d.photos.indexOf(f);
+    var act = ctl.getAttribute('data-act');
+    if (act === 'del') d.photos.splice(i, 1);
+    if (act === 'left' && i > 0) { d.photos.splice(i, 1); d.photos.splice(i - 1, 0, f); }
+    if (act === 'right' && i < d.photos.length - 1) { d.photos.splice(i, 1); d.photos.splice(i + 1, 0, f); }
+    rvDrafts[rvSel] = d;
+    renderPhotos();
+    return;
+  }
+  if (e.target.closest('#rv-save')) saveReview();
+  else if (e.target.closest('#rv-del')) {
+    armOrRun($('rv-del'), '삭제', '한 번 더 누르면 삭제돼요', function () {
+      api('DELETE', '/api/admin/reviews/' + rvSel).then(function () {
+        delete rvDrafts[rvSel];
+        rvSel = null;
+        return loadReviews();
+      }).catch(function () {});
+    });
+  }
+});
+
+function saveReview() {
+  var d = readRvForm();
+  var msg = $('rv-saved');
+  if (rvUploading) { msg.style.color = 'var(--danger)'; msg.textContent = '사진을 올리는 중이에요. 잠시 후 저장해 주세요.'; return; }
+  if (!d.title.trim()) { msg.style.color = 'var(--danger)'; msg.textContent = '제목을 입력해 주세요.'; $('rv-title').focus(); return; }
+  var btn = $('rv-save');
+  btn.disabled = true;
+  btn.textContent = '저장·번역 중…';
+  msg.style.color = '';
+  msg.textContent = '';
+  var isNew = rvSel === 'new';
+  var payload = { title: d.title, body: d.body, region: d.region, service: d.service, postedAt: d.postedAt, published: d.published, photos: d.photos };
+  api(isNew ? 'POST' : 'PUT', isNew ? '/api/admin/reviews' : '/api/admin/reviews/' + rvSel, payload).then(function (j) {
+    delete rvDrafts[rvSel];
+    var oldSel = rvSel;
+    rvSel = j.item.id;
+    return loadReviews().then(function () {
+      var m = $('rv-saved');
+      if (m) {
+        m.style.color = j.translation && j.translation.failed ? '#b45309' : '';
+        m.textContent = j.translation && j.translation.failed ? '저장했어요 · 영어 번역은 실패했어요 (다시 저장하면 재시도해요)' : '✓ 저장했어요';
+        setTimeout(function () { var x = $('rv-saved'); if (x) x.textContent = ''; }, 6000);
+      }
+    });
+  }).catch(function (err) {
+    var m = $('rv-saved');
+    if (m) { m.style.color = 'var(--danger)'; m.textContent = '저장하지 못했어요. ' + (err && err.message ? '' : '다시 시도해 주세요.'); }
+    var b = $('rv-save');
+    if (b) { b.disabled = false; b.textContent = '저장'; }
   });
 }
 
