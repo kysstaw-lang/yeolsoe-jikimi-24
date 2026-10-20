@@ -632,6 +632,7 @@
     <button type="button" data-view="areas">서비스 지역 <span class="n" id="menu-areas">0/25</span></button>
     <button type="button" data-view="content">구별 내용 <span class="n" id="menu-content">0/25</span></button>
     <button type="button" data-view="reviews">작업 후기 <span class="n" id="menu-reviews">0</span></button>
+    <button type="button" data-view="products">제품 <span class="n" id="menu-products">0</span></button>
   </nav>
 
   <!-- ===== 문의 목록 ===== -->
@@ -732,6 +733,21 @@
     <div class="content-grid rv-admin-grid">
       <div class="content-list" id="rvList"></div>
       <div class="content-editor" id="rvEditor"></div>
+    </div>
+  </section>
+
+  <!-- ===== 제품 ===== -->
+  <section id="productsView" hidden>
+    <div class="areas-head">
+      <div>
+        <h2>제품</h2>
+        <div class="areas-count">보유한 제품을 사진과 함께 올리면 홈의 “제품 보기” 탭에 나와요.</div>
+      </div>
+      <button type="button" class="btn-primary" id="pdNew">+ 새 제품 등록</button>
+    </div>
+    <div class="content-grid rv-admin-grid">
+      <div class="content-list" id="pdList"></div>
+      <div class="content-editor" id="pdEditor"></div>
     </div>
   </section>
 

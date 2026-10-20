@@ -18,6 +18,11 @@ var rvSel = null;
 var rvDrafts = {};
 var rvLoaded = false;
 var rvUploading = 0;
+var products = [];
+var pdSel = null;
+var pdDrafts = {};
+var pdLoaded = false;
+var pdUploading = 0;
 
 function $(id) { return document.getElementById(id); }
 
@@ -109,6 +114,10 @@ $('logoutBtn').addEventListener('click', function () {
     rvLoaded = false;
     rvDrafts = {};
     rvSel = null;
+    products = [];
+    pdLoaded = false;
+    pdDrafts = {};
+    pdSel = null;
     showAuth();
   });
 });
@@ -149,6 +158,8 @@ function setView(v) {
   $('areasView').hidden = v !== 'areas';
   $('contentView').hidden = v !== 'content';
   $('reviewsView').hidden = v !== 'reviews';
+  $('productsView').hidden = v !== 'products';
+  if (v === 'products' && !pdLoaded) loadProducts().catch(function () {});
   if (v === 'reviews' && !rvLoaded) loadReviews().catch(function () {});
   if (v === 'content' && !contentLoaded) loadContent().catch(function () {});
   document.querySelectorAll('#menu button').forEach(function (b) {
@@ -755,6 +766,193 @@ function saveReview() {
     var m = $('rv-saved');
     if (m) { m.style.color = 'var(--danger)'; m.textContent = '저장하지 못했어요. ' + (err && err.message ? '' : '다시 시도해 주세요.'); }
     var b = $('rv-save');
+    if (b) { b.disabled = false; b.textContent = '저장'; }
+  });
+}
+
+/* ---------- products ---------- */
+
+var PRODUCT_CATEGORIES = [['', '선택 안 함'], ['lock', '도어락'], ['key', '열쇠·자물쇠'], ['other', '기타']];
+var MAX_PRODUCT_PHOTOS = 8;
+
+function loadProducts() {
+  return api('GET', '/api/admin/products').then(function (j) {
+    products = j.items || [];
+    pdLoaded = true;
+    if (pdSel === null && products.length) pdSel = products[0].id;
+    renderPdList();
+    renderPdEditor();
+  });
+}
+
+function pdBlank() { return { name: '', category: '', price: '', description: '', published: true, photos: [] }; }
+
+function pdDraftFor(id) {
+  if (pdDrafts[id]) return pdDrafts[id];
+  if (id === 'new') return pdBlank();
+  var item = products.find(function (r) { return r.id === id; });
+  if (!item) return pdBlank();
+  return { name: item.name, category: item.category, price: item.price, description: item.description, published: item.published, photos: item.photos.slice() };
+}
+
+function renderPdList() {
+  $('menu-products').textContent = products.length;
+  var rows = [];
+  if (pdSel === 'new') rows.push('<button type="button" class="rv-item selected" data-id="new"><span class="th"></span><span class="tx"><div class="t">새 제품</div><div class="d">작성 중</div></span></button>');
+  products.forEach(function (r) {
+    rows.push('<button type="button" class="rv-item' + (r.id === pdSel ? ' selected' : '') + '" data-id="' + r.id + '">' +
+      '<span class="th">' + (r.photos[0] ? '<img src="/uploads/' + esc(r.photos[0]) + '" alt="">' : '') + '</span>' +
+      '<span class="tx"><div class="t">' + esc(r.name) + '</div><div class="d">' + esc(r.price || '가격 미입력') + (r.published ? '' : ' · <span class="off">비공개</span>') + '</div></span></button>');
+  });
+  $('pdList').innerHTML = rows.length ? rows.join('') : '<div class="rv-empty-list">아직 등록한 제품이 없어요. “새 제품 등록”을 눌러 시작하세요.</div>';
+}
+
+function renderPdPhotos() {
+  var d = pdDraftFor(pdSel);
+  var html = d.photos.map(function (f, i) {
+    return '<div class="rv-ph" data-f="' + esc(f) + '"><img src="/uploads/' + esc(f) + '" alt="">' +
+      (i === 0 ? '<span class="main">대표</span>' : '') +
+      '<div class="ctl"><button type="button" data-act="left" aria-label="앞으로">←</button><button type="button" data-act="del" aria-label="삭제">✕</button><button type="button" data-act="right" aria-label="뒤로">→</button></div></div>';
+  }).join('');
+  if (d.photos.length < MAX_PRODUCT_PHOTOS) html += '<label class="rv-add">+ 사진<br>추가<input type="file" id="pd-file" accept="image/*" multiple hidden></label>';
+  $('pd-photos').innerHTML = html;
+}
+
+function renderPdEditor() {
+  if (pdSel === null) {
+    $('pdEditor').innerHTML = '<div class="rv-empty-list">왼쪽에서 제품을 고르거나 “새 제품 등록”을 눌러 주세요.</div>';
+    return;
+  }
+  var d = pdDraftFor(pdSel);
+  var isNew = pdSel === 'new';
+  var cats = PRODUCT_CATEGORIES.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === d.category ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('');
+  $('pdEditor').innerHTML =
+    '<div class="ce-head"><h3>' + (isNew ? '새 제품 등록' : '제품 수정') + '</h3>' +
+      (!isNew && d.published ? '<a href="/products/' + pdSel + '" target="_blank" rel="noopener">홈페이지에서 보기</a>' : '') + '</div>' +
+    '<div class="field"><label for="pd-name">제품 이름</label><input id="pd-name" type="text" maxlength="120" value="' + esc(d.name) + '" placeholder="예) 디지털 도어락 (카드·비밀번호 겸용)"></div>' +
+    '<div class="field-row"><div class="field"><label for="pd-category">분류</label><select id="pd-category">' + cats + '</select></div>' +
+      '<div class="field"><label for="pd-price">가격<span class="ce-hint">비워 두면 홈페이지에 표시되지 않아요</span></label><input id="pd-price" type="text" maxlength="60" value="' + esc(d.price) + '" placeholder="예) 150,000원"></div></div>' +
+    '<div class="field"><label for="pd-desc">설명</label><textarea id="pd-desc" rows="8" maxlength="8000" placeholder="제품 특징, 규격, 설치 가능 여부 등을 적어 주세요. 빈 줄을 넣으면 문단이 나뉘어요.">' + esc(d.description) + '</textarea></div>' +
+    '<div class="field"><label>사진<span class="ce-hint">최대 8장 · 첫 번째 사진이 대표 사진이에요 · 올릴 때 자동으로 줄여서 저장돼요</span></label><div class="rv-photos" id="pd-photos"></div><div class="ce-note" id="pd-upmsg" style="margin-top:8px"></div></div>' +
+    '<label class="rv-pub"><input type="checkbox" id="pd-pub"' + (d.published ? ' checked' : '') + '> 홈페이지에 공개</label>' +
+    '<div class="ce-actions">' + (isNew ? '' : '<button type="button" class="btn-ghost" id="pd-del">삭제</button>') +
+      '<span class="spacer"></span><span class="ce-saved" id="pd-saved"></span><button type="button" class="btn-primary" id="pd-save">저장</button></div>' +
+    '<div class="ce-note">저장하면 영어 사이트에는 이름·가격·설명이 자동으로 번역되어 나와요. 사진의 위치 정보 등은 올릴 때 제거돼요.</div>';
+  renderPdPhotos();
+}
+
+function readPdForm() {
+  var d = pdDraftFor(pdSel);
+  d.name = $('pd-name').value;
+  d.category = $('pd-category').value;
+  d.price = $('pd-price').value;
+  d.description = $('pd-desc').value;
+  d.published = $('pd-pub').checked;
+  pdDrafts[pdSel] = d;
+  return d;
+}
+
+function selectProduct(id) {
+  if ($('pd-name')) readPdForm();
+  pdSel = id;
+  renderPdList();
+  renderPdEditor();
+}
+
+$('pdNew').addEventListener('click', function () { selectProduct('new'); $('pd-name').focus(); });
+$('pdList').addEventListener('click', function (e) {
+  var b = e.target.closest('.rv-item');
+  if (!b) return;
+  var id = b.getAttribute('data-id');
+  selectProduct(id === 'new' ? 'new' : Number(id));
+});
+
+$('pdEditor').addEventListener('input', function (e) { if (e.target.id && e.target.id.indexOf('pd-') === 0 && e.target.id !== 'pd-file') readPdForm(); });
+$('pdEditor').addEventListener('change', function (e) {
+  if (e.target.id === 'pd-pub' || e.target.id === 'pd-category') { readPdForm(); return; }
+  if (e.target.id === 'pd-file') uploadProductPhotos(Array.prototype.slice.call(e.target.files));
+});
+
+async function uploadProductPhotos(files) {
+  var id = pdSel;
+  var d = pdDraftFor(id);
+  var msg = $('pd-upmsg');
+  var failed = [];
+  pdUploading++;
+  for (var i = 0; i < files.length; i++) {
+    if (d.photos.length >= MAX_PRODUCT_PHOTOS) { failed.push('사진은 최대 ' + MAX_PRODUCT_PHOTOS + '장까지예요'); break; }
+    if (msg && pdSel === id) msg.textContent = '사진 올리는 중… (' + (i + 1) + '/' + files.length + ')';
+    try {
+      var blob = await shrink(files[i]);
+      var r = await fetch('/api/admin/uploads', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'image/jpeg' }, body: blob });
+      if (r.status === 401) { showAuth(); pdUploading--; return; }
+      var j = await r.json().catch(function () { return {}; });
+      if (!r.ok) throw new Error(j.error || 'upload');
+      d.photos.push(j.file);
+      pdDrafts[id] = d;
+      if (pdSel === id) renderPdPhotos();
+    } catch (err) {
+      failed.push(files[i].name);
+    }
+  }
+  pdUploading--;
+  var m = $('pd-upmsg');
+  if (m && pdSel === id) m.textContent = failed.length ? '올리지 못한 사진: ' + failed.join(', ') + ' (JPG·PNG 사진을 사용해 주세요)' : '';
+}
+
+$('pdEditor').addEventListener('click', function (e) {
+  var ctl = e.target.closest('.rv-ph button');
+  if (ctl) {
+    var d = readPdForm();
+    var f = ctl.closest('.rv-ph').getAttribute('data-f');
+    var i = d.photos.indexOf(f);
+    var act = ctl.getAttribute('data-act');
+    if (act === 'del') d.photos.splice(i, 1);
+    if (act === 'left' && i > 0) { d.photos.splice(i, 1); d.photos.splice(i - 1, 0, f); }
+    if (act === 'right' && i < d.photos.length - 1) { d.photos.splice(i, 1); d.photos.splice(i + 1, 0, f); }
+    pdDrafts[pdSel] = d;
+    renderPdPhotos();
+    return;
+  }
+  if (e.target.closest('#pd-save')) saveProduct();
+  else if (e.target.closest('#pd-del')) {
+    armOrRun($('pd-del'), '삭제', '한 번 더 누르면 삭제돼요', function () {
+      api('DELETE', '/api/admin/products/' + pdSel).then(function () {
+        delete pdDrafts[pdSel];
+        pdSel = null;
+        return loadProducts();
+      }).catch(function () {});
+    });
+  }
+});
+
+function saveProduct() {
+  var d = readPdForm();
+  var msg = $('pd-saved');
+  if (pdUploading) { msg.style.color = 'var(--danger)'; msg.textContent = '사진을 올리는 중이에요. 잠시 후 저장해 주세요.'; return; }
+  if (!d.name.trim()) { msg.style.color = 'var(--danger)'; msg.textContent = '제품 이름을 입력해 주세요.'; $('pd-name').focus(); return; }
+  var btn = $('pd-save');
+  btn.disabled = true;
+  btn.textContent = '저장·번역 중…';
+  msg.style.color = '';
+  msg.textContent = '';
+  var isNew = pdSel === 'new';
+  var payload = { name: d.name, category: d.category, price: d.price, description: d.description, published: d.published, photos: d.photos };
+  api(isNew ? 'POST' : 'PUT', isNew ? '/api/admin/products' : '/api/admin/products/' + pdSel, payload).then(function (j) {
+    delete pdDrafts[pdSel];
+    pdSel = j.item.id;
+    return loadProducts().then(function () {
+      var m = $('pd-saved');
+      if (m) {
+        m.style.color = j.translation && j.translation.failed ? '#b45309' : '';
+        m.textContent = j.translation && j.translation.failed ? '저장했어요 · 영어 번역은 실패했어요 (다시 저장하면 재시도해요)' : '✓ 저장했어요';
+        setTimeout(function () { var x = $('pd-saved'); if (x) x.textContent = ''; }, 6000);
+      }
+    });
+  }).catch(function (err) {
+    var m = $('pd-saved');
+    if (m) { m.style.color = 'var(--danger)'; m.textContent = '저장하지 못했어요. ' + (err && err.message ? '' : '다시 시도해 주세요.'); }
+    var b = $('pd-save');
     if (b) { b.disabled = false; b.textContent = '저장'; }
   });
 }

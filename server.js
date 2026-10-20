@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
-const { NAMES, renderPublic, renderAdmin, renderArea, renderSitemap, renderReviews, renderReview } = require('./lib/render');
+const { NAMES, renderPublic, renderAdmin, renderArea, renderSitemap, renderReviews, renderReview, renderProducts, renderProduct } = require('./lib/render');
 const AREAS = require('./lib/areas');
 const { translateKoToEn, primaryProvider } = require('./lib/translate');
 
@@ -95,6 +95,22 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_reviews_posted ON reviews(posted_at DESC, id DESC);
 `);
+db.exec(`
+  CREATE TABLE IF NOT EXISTS products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL DEFAULT '',
+    price TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    name_en TEXT NOT NULL DEFAULT '',
+    price_en TEXT NOT NULL DEFAULT '',
+    description_en TEXT NOT NULL DEFAULT '',
+    photos TEXT NOT NULL DEFAULT '[]',
+    published INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+`);
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const contentCols = new Set(db.prepare('PRAGMA table_info(area_content)').all().map((c) => c.name));
@@ -121,6 +137,14 @@ const q = {
   reviewUpdate: db.prepare(`UPDATE reviews SET title = @title, body = @body, title_en = @title_en, body_en = @body_en, region = @region,
     service = @service, photos = @photos, published = @published, posted_at = @posted_at, updated_at = @updated_at WHERE id = @id`),
   reviewDelete: db.prepare('DELETE FROM reviews WHERE id = ?'),
+  productsAll: db.prepare('SELECT * FROM products ORDER BY id DESC'),
+  productsPublished: db.prepare('SELECT * FROM products WHERE published = 1 ORDER BY id DESC LIMIT 200'),
+  productById: db.prepare('SELECT * FROM products WHERE id = ?'),
+  productInsert: db.prepare(`INSERT INTO products (name, category, price, description, name_en, price_en, description_en, photos, published, created_at, updated_at)
+    VALUES (@name, @category, @price, @description, @name_en, @price_en, @description_en, @photos, @published, @created_at, @updated_at)`),
+  productUpdate: db.prepare(`UPDATE products SET name = @name, category = @category, price = @price, description = @description, name_en = @name_en,
+    price_en = @price_en, description_en = @description_en, photos = @photos, published = @published, updated_at = @updated_at WHERE id = @id`),
+  productDelete: db.prepare('DELETE FROM products WHERE id = ?'),
   contentAll: db.prepare('SELECT * FROM area_content'),
   contentUpsert: db.prepare(`INSERT INTO area_content (name, intro, headline, body, description, intro_en, headline_en, body_en, description_en, updated_at)
     VALUES (@name, @intro, @headline, @body, @description, @intro_en, @headline_en, @body_en, @description_en, @updated_at)
@@ -149,6 +173,42 @@ function rowToReview(row) {
     id: row.id, title: row.title, body: row.body, titleEn: row.title_en, bodyEn: row.body_en,
     region: row.region, service: row.service, photos, published: !!row.published, postedAt: row.posted_at,
   };
+}
+
+const PRODUCT_CATEGORIES = ['lock', 'key', 'other'];
+
+function rowToProduct(row) {
+  let photos = [];
+  try { photos = JSON.parse(row.photos).filter((f) => PHOTO_RE.test(f)); } catch (e) { /* keep empty */ }
+  return {
+    id: row.id, name: row.name, category: row.category, price: row.price, description: row.description,
+    nameEn: row.name_en, priceEn: row.price_en, descriptionEn: row.description_en,
+    photos, published: !!row.published,
+  };
+}
+
+function productInput(body, prevPhotos) {
+  const name = str(body.name, 120);
+  if (!name) return { error: '제품 이름을 입력해 주세요.' };
+  const photos = Array.isArray(body.photos)
+    ? body.photos.filter((f, i, a) => typeof f === 'string' && PHOTO_RE.test(f) && a.indexOf(f) === i && fs.existsSync(path.join(UPLOAD_DIR, f))).slice(0, 8)
+    : prevPhotos || [];
+  return {
+    name, category: PRODUCT_CATEGORIES.includes(body.category) ? body.category : '',
+    price: str(body.price, 60), description: str(body.description, 8000), photos, published: body.published === false ? 0 : 1,
+  };
+}
+
+async function translateProduct(prev, next) {
+  const out = { name_en: '', price_en: '', description_en: '' };
+  let failed = false;
+  for (const [src, dst] of [['name', 'name_en'], ['price', 'price_en'], ['description', 'description_en']]) {
+    if (!next[src]) continue;
+    if (prev && prev[src] === next[src] && prev[dst]) { out[dst] = prev[dst]; continue; }
+    if (src === 'price' && /^[\d,.\s]+원?$/.test(next[src])) { out[dst] = 'KRW ' + next[src].replace(/\s*원$/, '').trim(); continue; }
+    try { out[dst] = (await translateKoToEn(next[src])).text; } catch (err) { console.warn('[translate] failed:', err.message); failed = true; }
+  }
+  return { out, failed };
 }
 
 function removeUpload(file) {
@@ -180,10 +240,11 @@ async function translateReview(prev, next) {
   return { out, failed };
 }
 
-/** Photos uploaded in an editor but never saved into a review are removed after a day. */
+/** Photos uploaded in an editor but never saved into a review or product are removed after a day. */
 function cleanOrphanUploads() {
   const used = new Set();
   for (const row of q.reviewsAll.all()) rowToReview(row).photos.forEach((f) => used.add(f));
+  for (const row of q.productsAll.all()) rowToProduct(row).photos.forEach((f) => used.add(f));
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   for (const f of fs.readdirSync(UPLOAD_DIR)) {
     if (!PHOTO_RE.test(f) || used.has(f)) continue;
@@ -379,7 +440,7 @@ async function handle(req, res) {
     const lang = rm[1] ? 'en' : 'ko';
     if (!rm[2]) {
       const list = q.reviewsPublished.all().map(rowToReview);
-      return send(res, 200, renderReviews(list, SITE, lang), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+      return send(res, 200, renderReviews(list, SITE, lang, { products: q.productsPublished.all().length }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
     }
     const row = q.reviewById.get(Number(rm[2]));
     if (row && row.published) {
@@ -388,8 +449,23 @@ async function handle(req, res) {
     return send(res, 404, '<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Not found</title><p style="font-family:sans-serif;padding:40px">Not found. <a href="/">Home</a></p>', { 'Content-Type': 'text/html; charset=utf-8' });
   }
 
+  // products (both languages)
+  const pm = p.match(/^(\/en)?\/products(?:\/(\d+))?\/?$/);
+  if (method === 'GET' && pm) {
+    const lang = pm[1] ? 'en' : 'ko';
+    if (!pm[2]) {
+      const list = q.productsPublished.all().map(rowToProduct);
+      return send(res, 200, renderProducts(list, SITE, lang, { reviews: q.reviewsPublished.all().length }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+    }
+    const row = q.productById.get(Number(pm[2]));
+    if (row && row.published) {
+      return send(res, 200, renderProduct(rowToProduct(row), SITE, lang), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+    }
+    return send(res, 404, '<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Not found</title><p style="font-family:sans-serif;padding:40px">Not found. <a href="/">Home</a></p>', { 'Content-Type': 'text/html; charset=utf-8' });
+  }
+
   if (method === 'GET' && (p === '/en' || p === '/en/')) {
-    return send(res, 200, renderPublic(getAreas(), SITE, getContentMap(), 'en', { reviewCount: q.reviewsPublished.all().length }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+    return send(res, 200, renderPublic(getAreas(), SITE, getContentMap(), 'en', { reviewCount: q.reviewsPublished.all().length, productCount: q.productsPublished.all().length }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
   }
   if (method === 'GET' && p.startsWith('/en/area/')) {
     const slugEn = decodeURIComponent(p.slice(9)).replace(/\/+$/, '');
@@ -398,7 +474,7 @@ async function handle(req, res) {
     return send(res, 404, '<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Page not found</title><p style="font-family:sans-serif;padding:40px">Page not found. <a href="/en">Back to home</a></p>', { 'Content-Type': 'text/html; charset=utf-8' });
   }
   if (method === 'GET' && (p === '/' || p === '/index.html')) {
-    return send(res, 200, renderPublic(getAreas(), SITE, getContentMap(), 'ko', { reviewCount: q.reviewsPublished.all().length }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+    return send(res, 200, renderPublic(getAreas(), SITE, getContentMap(), 'ko', { reviewCount: q.reviewsPublished.all().length, productCount: q.productsPublished.all().length }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
   }
   if (method === 'GET' && (p === '/admin' || p === '/admin/')) {
     return send(res, 200, adminHtml, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' });
@@ -419,7 +495,7 @@ async function handle(req, res) {
     return send(res, 200, llmsTxt, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
   }
   if (method === 'GET' && p === '/sitemap.xml') {
-    return send(res, 200, renderSitemap(getAreas(), SITE, q.reviewsPublished.all().map((r) => r.id)), { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'no-cache' });
+    return send(res, 200, renderSitemap(getAreas(), SITE, q.reviewsPublished.all().map((r) => r.id), q.productsPublished.all().map((r) => r.id)), { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'no-cache' });
   }
   if (method === 'GET' && p.startsWith('/area/')) {
     const slug = decodeURIComponent(p.slice(6)).replace(/\/+$/, '');
@@ -604,6 +680,38 @@ async function handle(req, res) {
       }
       if (method === 'DELETE') {
         q.reviewDelete.run(id);
+        prev.photos.forEach(removeUpload);
+        return sendJson(res, 200, { ok: true });
+      }
+    }
+
+    if (method === 'GET' && p === '/api/admin/products') {
+      return sendJson(res, 200, { items: q.productsAll.all().map(rowToProduct) });
+    }
+    if (method === 'POST' && p === '/api/admin/products') {
+      const input = productInput(await readJson(req));
+      if (input.error) return sendJson(res, 400, { error: input.error });
+      const { out, failed } = await translateProduct(null, input);
+      const now = Date.now();
+      const info = q.productInsert.run(Object.assign({}, input, out, { photos: JSON.stringify(input.photos), created_at: now, updated_at: now }));
+      return sendJson(res, 200, { item: rowToProduct(q.productById.get(info.lastInsertRowid)), translation: { failed } });
+    }
+    const pdm = p.match(/^\/api\/admin\/products\/(\d+)$/);
+    if (pdm) {
+      const id = Number(pdm[1]);
+      const prevRow = q.productById.get(id);
+      if (!prevRow) return sendJson(res, 404, { error: '없는 제품이에요.' });
+      const prev = rowToProduct(prevRow);
+      if (method === 'PUT') {
+        const input = productInput(await readJson(req), prev.photos);
+        if (input.error) return sendJson(res, 400, { error: input.error });
+        const { out, failed } = await translateProduct({ name: prev.name, price: prev.price, description: prev.description, name_en: prev.nameEn, price_en: prev.priceEn, description_en: prev.descriptionEn }, input);
+        q.productUpdate.run(Object.assign({ id }, input, out, { photos: JSON.stringify(input.photos), updated_at: Date.now() }));
+        prev.photos.filter((f) => !input.photos.includes(f)).forEach(removeUpload);
+        return sendJson(res, 200, { item: rowToProduct(q.productById.get(id)), translation: { failed } });
+      }
+      if (method === 'DELETE') {
+        q.productDelete.run(id);
         prev.photos.forEach(removeUpload);
         return sendJson(res, 200, { ok: true });
       }

@@ -64,6 +64,7 @@
   .tab-nav { display: inline-flex; gap: 4px; background: #fff; border: 1px solid var(--border); border-radius: 999px; padding: 4px; margin-top: 22px; }
   .tab-nav a { display: inline-flex; align-items: center; gap: 7px; padding: 9px 20px; border-radius: 999px; font-weight: 700; font-size: 0.9rem; color: var(--muted); }
   .tab-nav a:hover { color: var(--accent); }
+  @media (max-width: 420px) { .tab-nav { max-width: 100%; } .tab-nav a { padding: 9px 13px; gap: 5px; } }
   .tab-nav a.on { background: var(--ink); color: #fff; }
   .tab-nav .cnt { font-size: 0.74rem; font-weight: 700; opacity: 0.75; font-variant-numeric: tabular-nums; }
 
@@ -81,6 +82,8 @@
   .rv-card h2 { font-size: 1.04rem; font-weight: 800; line-height: 1.4; }
   .rv-excerpt { font-size: 0.86rem; color: #5b6075; line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .rv-date { margin-top: auto; font-size: 0.76rem; color: var(--muted); }
+  .pd-price { margin-top: auto; font-size: 0.92rem; font-weight: 800; color: var(--ink); }
+  .pd-price.big { margin-top: 10px; font-size: 1.15rem; }
   .rv-empty { margin-top: 32px; background: var(--card); border: 1px dashed var(--border); border-radius: 20px; padding: 60px 20px; text-align: center; color: var(--muted); }
 
   /* ---- review detail ---- */
