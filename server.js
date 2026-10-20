@@ -222,6 +222,7 @@ function setAreas(list) {
 /* ---------- helpers ---------- */
 
 const adminHtml = renderAdmin();
+const llmsTxt = fs.readFileSync(path.join(__dirname, 'static', 'llms.txt'), 'utf8');
 
 function makeLimiter(max, windowMs) {
   const hits = new Map();
@@ -404,7 +405,18 @@ async function handle(req, res) {
   }
   if (method === 'GET' && p === '/healthz') return send(res, 200, 'ok', { 'Content-Type': 'text/plain' });
   if (method === 'GET' && p === '/robots.txt') {
-    return send(res, 200, `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\n\nSitemap: ${SITE.siteUrl}/sitemap.xml\n`, { 'Content-Type': 'text/plain' });
+    // AI search / assistant crawlers get their own groups (a bot that matches a specific group ignores the * group),
+    // so the private paths are repeated in each of them.
+    const rules = 'Allow: /\nDisallow: /admin\nDisallow: /api/\n';
+    const txt =
+      `User-agent: OAI-SearchBot\n${rules}\n` +
+      `User-agent: ChatGPT-User\n${rules}\n` +
+      `User-agent: *\n${rules}\n` +
+      `Sitemap: ${SITE.siteUrl}/sitemap.xml\n`;
+    return send(res, 200, txt, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+  }
+  if (method === 'GET' && p === '/llms.txt') {
+    return send(res, 200, llmsTxt, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
   }
   if (method === 'GET' && p === '/sitemap.xml') {
     return send(res, 200, renderSitemap(getAreas(), SITE, q.reviewsPublished.all().map((r) => r.id)), { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'no-cache' });
