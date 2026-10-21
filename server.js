@@ -31,6 +31,7 @@ const SITE = {
     google: process.env.SITE_LINK_GOOGLE || 'https://share.google/AgOHGXSDJYKfUwdaI',
   },
   siteUrl: (process.env.SITE_URL || 'https://www.xn--2i4b2n54hnwa.com').replace(/\/+$/, ''),
+  naverVerify: process.env.NAVER_SITE_VERIFICATION || 'fd368e75fcd75202ba1a187734be9ca69ba9f300',
 };
 
 if (PROD && (!ADMIN_PASSWORD || !SESSION_SECRET)) {
