@@ -148,6 +148,9 @@
     margin-top: 16px;
   }
 
+  /* Korean title stays on one line; the font shrinks with the viewport instead of wrapping */
+  html[lang="ko"] .hero-text h2 { white-space: nowrap; font-size: clamp(1rem, calc((100vw - 40px) / 18.2), 1.9rem); }
+
   .hero-text .sub {
     margin-top: 14px;
     color: var(--muted);
