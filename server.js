@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
+const { STR } = require('./lib/i18n');
 const { NAMES, renderPublic, renderAdmin, renderArea, renderSitemap, renderReviews, renderReview, renderProducts, renderProduct } = require('./lib/render');
 const AREAS = require('./lib/areas');
 const { translateKoToEn, primaryProvider } = require('./lib/translate');
@@ -33,6 +34,8 @@ const SITE = {
   siteUrl: (process.env.SITE_URL || 'https://www.xn--2i4b2n54hnwa.com').replace(/\/+$/, ''),
   naverVerify: process.env.NAVER_SITE_VERIFICATION || 'fd368e75fcd75202ba1a187734be9ca69ba9f300',
 };
+
+const SITE_DEFAULTS = JSON.parse(JSON.stringify(SITE));
 
 if (PROD && (!ADMIN_PASSWORD || !SESSION_SECRET)) {
   console.error('ADMIN_PASSWORD and SESSION_SECRET must be set in production.');
@@ -159,8 +162,89 @@ const q = {
 function homeExtra() {
   const reviews = q.reviewsPublished.all().map(rowToReview);
   const products = q.productsPublished.all().map(rowToProduct);
-  return { reviewCount: reviews.length, productCount: products.length, reviews: reviews.slice(0, 3), products: products.slice(0, 5) };
+  return { reviewCount: reviews.length, productCount: products.length, reviews: reviews.slice(0, 3), products: products.slice(0, 5), showProducts: SITE.show.products, showReviews: SITE.show.reviews };
 }
+
+/* ---------- editable site settings (admin) ---------- */
+
+const PHONE_RE = /^[0-9+\-\s()]{5,20}$/;
+const URL_RE = /^https?:\/\/[^\s<>"']{3,300}$/i;
+const emptySiteConfig = () => ({
+  phone: '', hours: '', hoursEn: '', bizName: '', owner: '',
+  links: { naver: '', daangn: '', google: '' },
+  hero: { l1: '', l2: '', sub: '' }, heroEn: { l1: '', l2: '', sub: '' },
+  show: { products: true, reviews: true, dock: true },
+});
+
+function loadSiteConfig() {
+  try {
+    const row = q.getSetting.get('site_config');
+    return row ? Object.assign(emptySiteConfig(), JSON.parse(row.value)) : emptySiteConfig();
+  } catch (e) {
+    return emptySiteConfig();
+  }
+}
+
+/** Copies the saved admin settings over the built-in defaults on the shared SITE object. */
+function applySiteConfig(c) {
+  const D = SITE_DEFAULTS;
+  const hero = c.hero || {};
+  const heroEn = c.heroEn || {};
+  SITE.phone = c.phone || D.phone;
+  SITE.hours = c.hours || D.hours;
+  SITE.hoursEn = c.hours && c.hoursEn ? c.hoursEn : D.hoursEn;
+  SITE.bizName = c.bizName || D.bizName;
+  SITE.owner = c.owner || D.owner;
+  SITE.links = {
+    naver: (c.links && c.links.naver) || D.links.naver,
+    daangn: (c.links && c.links.daangn) || D.links.daangn,
+    google: (c.links && c.links.google) || D.links.google,
+  };
+  SITE.hero = hero.l1 || hero.l2 || hero.sub
+    ? { ko: { l1: hero.l1, l2: hero.l2, sub: hero.sub }, en: { l1: heroEn.l1, l2: heroEn.l2, sub: heroEn.sub } }
+    : null;
+  SITE.show = Object.assign({ products: true, reviews: true, dock: true }, c.show || {});
+}
+
+function siteConfigInput(body, prev) {
+  const b = body || {};
+  const links = b.links || {};
+  const link = (v) => { const t = str(v, 300); return URL_RE.test(t) ? t : ''; };
+  const phone = str(b.phone, 20);
+  if (phone && !PHONE_RE.test(phone)) return { error: '전화번호는 숫자와 - 만 입력해 주세요.' };
+  const hero = b.hero || {};
+  const show = b.show || {};
+  return {
+    config: {
+      phone, hours: str(b.hours, 60), hoursEn: '', bizName: str(b.bizName, 80), owner: str(b.owner, 40),
+      links: { naver: link(links.naver), daangn: link(links.daangn), google: link(links.google) },
+      hero: { l1: str(hero.l1, 40), l2: str(hero.l2, 40), sub: str(hero.sub, 160) }, heroEn: { l1: '', l2: '', sub: '' },
+      show: { products: show.products !== false, reviews: show.reviews !== false, dock: show.dock !== false },
+    },
+  };
+}
+
+/** English versions of the changed Korean texts; unchanged ones reuse the saved translation. */
+async function translateSiteConfig(prev, next) {
+  let failed = false;
+  const one = async (before, beforeEn, now) => {
+    if (!now) return '';
+    if (before === now && beforeEn) return beforeEn;
+    try { return (await translateKoToEn(now)).text; } catch (err) { console.warn('[translate] failed:', err.message); failed = true; return ''; }
+  };
+  next.hoursEn = await one(prev.hours, prev.hoursEn, next.hours);
+  for (const k of ['l1', 'l2', 'sub']) next.heroEn[k] = await one((prev.hero || {})[k], (prev.heroEn || {})[k], next.hero[k]);
+  return failed;
+}
+
+function siteDefaultsForAdmin() {
+  return {
+    phone: SITE_DEFAULTS.phone, hours: SITE_DEFAULTS.hours, bizName: SITE_DEFAULTS.bizName, owner: SITE_DEFAULTS.owner,
+    links: SITE_DEFAULTS.links, hero: { l1: STR.ko.heroL1, l2: STR.ko.heroL2, sub: STR.ko.heroSub },
+  };
+}
+
+applySiteConfig(loadSiteConfig());
 
 function getAreas() {
   try {
@@ -500,7 +584,7 @@ async function handle(req, res) {
     return send(res, 200, txt, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
   }
   if (method === 'GET' && p === '/llms.txt') {
-    return send(res, 200, llmsTxt, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+    return send(res, 200, llmsTxt.split('@@PHONE@@').join(SITE.phone), { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
   }
   if (method === 'GET' && p === '/sitemap.xml') {
     return send(res, 200, renderSitemap(getAreas(), SITE, q.reviewsPublished.all().map((r) => r.id), q.productsPublished.all().map((r) => r.id)), { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'no-cache' });
@@ -723,6 +807,18 @@ async function handle(req, res) {
         prev.photos.forEach(removeUpload);
         return sendJson(res, 200, { ok: true });
       }
+    }
+
+    if (method === 'GET' && p === '/api/admin/site') {
+      return sendJson(res, 200, { config: loadSiteConfig(), defaults: siteDefaultsForAdmin() });
+    }
+    if (method === 'PUT' && p === '/api/admin/site') {
+      const { config, error } = siteConfigInput(await readJson(req));
+      if (error) return sendJson(res, 400, { error });
+      const failed = await translateSiteConfig(loadSiteConfig(), config);
+      q.putSetting.run('site_config', JSON.stringify(config));
+      applySiteConfig(config);
+      return sendJson(res, 200, { config, translation: { failed } });
     }
 
     if (method === 'GET' && p === '/api/admin/areas') return sendJson(res, 200, { active: getAreas() });

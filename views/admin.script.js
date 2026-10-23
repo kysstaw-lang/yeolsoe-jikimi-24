@@ -23,6 +23,8 @@ var pdSel = null;
 var pdDrafts = {};
 var pdLoaded = false;
 var pdUploading = 0;
+var siteLoaded = false;
+var siteData = null;
 
 function $(id) { return document.getElementById(id); }
 
@@ -118,6 +120,8 @@ $('logoutBtn').addEventListener('click', function () {
     pdLoaded = false;
     pdDrafts = {};
     pdSel = null;
+    siteLoaded = false;
+    siteData = null;
     showAuth();
   });
 });
@@ -159,6 +163,8 @@ function setView(v) {
   $('contentView').hidden = v !== 'content';
   $('reviewsView').hidden = v !== 'reviews';
   $('productsView').hidden = v !== 'products';
+  $('siteView').hidden = v !== 'site';
+  if (v === 'site' && !siteLoaded) loadSite().catch(function () {});
   if (v === 'products' && !pdLoaded) loadProducts().catch(function () {});
   if (v === 'reviews' && !rvLoaded) loadReviews().catch(function () {});
   if (v === 'content' && !contentLoaded) loadContent().catch(function () {});
@@ -956,6 +962,83 @@ function saveProduct() {
     if (b) { b.disabled = false; b.textContent = '저장'; }
   });
 }
+
+/* ---------- site settings ---------- */
+
+function loadSite() {
+  return api('GET', '/api/admin/site').then(function (j) {
+    siteData = j;
+    siteLoaded = true;
+    renderSite();
+  });
+}
+
+function stField(id, label, value, placeholder, hint, max) {
+  return '<div class="field"><label for="' + id + '">' + label + (hint ? '<span class="ce-hint">' + hint + '</span>' : '') + '</label>' +
+    '<input id="' + id + '" type="text" maxlength="' + (max || 200) + '" value="' + esc(value) + '" placeholder="' + esc(placeholder) + '"></div>';
+}
+
+function stCheck(id, label, checked) {
+  return '<label class="st-check"><input type="checkbox" id="' + id + '"' + (checked ? ' checked' : '') + '> ' + label + '</label>';
+}
+
+function renderSite() {
+  var c = siteData.config;
+  var d = siteData.defaults;
+  $('siteEditor').innerHTML =
+    '<div class="st-sec"><h3>첫 화면 배너</h3><div class="st-sub">홈 맨 위 큰 제목과 설명이에요. 첫 줄은 파란색으로 나와요.</div>' +
+      stField('st-l1', '제목 첫 줄 (파란색)', c.hero.l1, d.hero.l1, '', 40) +
+      stField('st-l2', '제목 둘째 줄', c.hero.l2, d.hero.l2, '', 40) +
+      stField('st-sub', '설명', c.hero.sub, d.hero.sub, '', 160) + '</div>' +
+    '<div class="st-sec"><h3>연락처</h3><div class="st-sub">전화 버튼, 하단 고정 버튼, 푸터에 모두 반영돼요.</div>' +
+      '<div class="field-row">' + stField('st-phone', '전화번호', c.phone, d.phone, '숫자와 - 만', 20) +
+      stField('st-hours', '영업시간 문구', c.hours, d.hours, '', 60) + '</div></div>' +
+    '<div class="st-sec"><h3>사업자 정보</h3><div class="st-sub">푸터와 연락처 영역에 나와요.</div>' +
+      '<div class="field-row">' + stField('st-biz', '상표명', c.bizName, d.bizName, '', 80) +
+      stField('st-owner', '대표자', c.owner, d.owner, '', 40) + '</div></div>' +
+    '<div class="st-sec"><h3>채널 링크</h3><div class="st-sub">https:// 로 시작하는 주소만 저장돼요.</div>' +
+      stField('st-naver', '네이버 플레이스', c.links.naver, d.links.naver, '', 300) +
+      stField('st-daangn', '당근', c.links.daangn, d.links.daangn, '', 300) +
+      stField('st-google', '구글 지도', c.links.google, d.links.google, '', 300) + '</div>' +
+    '<div class="st-sec"><h3>화면 표시</h3>' +
+      stCheck('st-show-products', '홈에 제품 구역 보이기', c.show.products) +
+      stCheck('st-show-reviews', '홈에 작업 후기 구역 보이기', c.show.reviews) +
+      stCheck('st-show-dock', '화면 아래 고정 연락 버튼(전화 상담 / 문의하기) 보이기', c.show.dock) + '</div>' +
+    '<div class="ce-actions"><span class="spacer"></span><span class="ce-saved" id="st-saved"></span><button type="button" class="btn-primary" id="st-save">저장</button></div>' +
+    '<div class="ce-note">저장하면 영어 사이트의 제목·설명·영업시간은 자동으로 번역돼요. 칸을 비우고 저장하면 기본 문구로 돌아가요.</div>';
+}
+
+function readSiteForm() {
+  return {
+    phone: $('st-phone').value, hours: $('st-hours').value, bizName: $('st-biz').value, owner: $('st-owner').value,
+    links: { naver: $('st-naver').value, daangn: $('st-daangn').value, google: $('st-google').value },
+    hero: { l1: $('st-l1').value, l2: $('st-l2').value, sub: $('st-sub').value },
+    show: { products: $('st-show-products').checked, reviews: $('st-show-reviews').checked, dock: $('st-show-dock').checked },
+  };
+}
+
+$('siteEditor').addEventListener('click', function (e) {
+  if (!e.target.closest('#st-save')) return;
+  var btn = $('st-save');
+  var msg = $('st-saved');
+  btn.disabled = true;
+  btn.textContent = '저장·번역 중…';
+  msg.style.color = '';
+  msg.textContent = '';
+  api('PUT', '/api/admin/site', readSiteForm()).then(function (j) {
+    siteData.config = j.config;
+    renderSite();
+    var m = $('st-saved');
+    m.style.color = j.translation && j.translation.failed ? '#b45309' : '';
+    m.textContent = j.translation && j.translation.failed ? '저장했어요 · 영어 번역은 실패했어요 (다시 저장하면 재시도해요)' : '✓ 저장했어요';
+    setTimeout(function () { var x = $('st-saved'); if (x) x.textContent = ''; }, 6000);
+  }).catch(function (err) {
+    var m = $('st-saved');
+    if (m) { m.style.color = 'var(--danger)'; m.textContent = (err && err.message) || '저장하지 못했어요. 다시 시도해 주세요.'; }
+    var b = $('st-save');
+    if (b) { b.disabled = false; b.textContent = '저장'; }
+  });
+});
 
 /* ---------- start ---------- */
 

@@ -552,6 +552,15 @@
   .ce-note { margin-top: 12px; font-size: 0.76rem; color: var(--muted); line-height: 1.6; }
 
 
+  /* ---------- site settings ---------- */
+  .st-form { max-width: 760px; }
+  .st-sec { margin: 0 0 22px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .st-sec:last-of-type { border-bottom: none; }
+  .st-sec h3 { margin: 0 0 4px; font-size: 1rem; font-weight: 800; }
+  .st-sec .st-sub { margin: 0 0 12px; font-size: 0.78rem; color: var(--muted); line-height: 1.6; }
+  .st-check { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 700; margin: 8px 0; cursor: pointer; }
+  .st-check input { width: 17px; height: 17px; accent-color: var(--accent); }
+
   /* ---------- work reviews ---------- */
 
   .rv-admin-grid { grid-template-columns: 250px 1fr; }
@@ -633,6 +642,7 @@
     <button type="button" data-view="content">구별 내용 <span class="n" id="menu-content">0/25</span></button>
     <button type="button" data-view="reviews">작업 후기 <span class="n" id="menu-reviews">0</span></button>
     <button type="button" data-view="products">제품 <span class="n" id="menu-products">0</span></button>
+    <button type="button" data-view="site">사이트 설정</button>
   </nav>
 
   <!-- ===== 문의 목록 ===== -->
@@ -734,6 +744,17 @@
       <div class="content-list" id="rvList"></div>
       <div class="content-editor" id="rvEditor"></div>
     </div>
+  </section>
+
+  <!-- ===== 사이트 설정 ===== -->
+  <section id="siteView" hidden>
+    <div class="areas-head">
+      <div>
+        <h2>사이트 설정</h2>
+        <div class="areas-count">첫 화면 문구, 연락처, 링크, 화면 표시를 여기서 바꿀 수 있어요. 비워 두면 기본값을 써요.</div>
+      </div>
+    </div>
+    <div class="content-editor st-form" id="siteEditor"></div>
   </section>
 
   <!-- ===== 제품 ===== -->

@@ -24,7 +24,7 @@ Website: https://www.서울열쇠.com/
 - English: https://www.서울열쇠.com/en
 
 ## Contact
-- 전화: 010-4555-6239
+- 전화: @@PHONE@@
 - 대표자: 이문술
 - 문의는 홈페이지의 문의 양식 또는 전화로 접수할 수 있습니다.
 
