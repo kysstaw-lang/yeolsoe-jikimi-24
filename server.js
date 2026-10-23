@@ -155,6 +155,13 @@ const q = {
   putSetting: db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'),
 };
 
+/** Published products and reviews for the home page (the teasers show the newest few, counts are totals). */
+function homeExtra() {
+  const reviews = q.reviewsPublished.all().map(rowToReview);
+  const products = q.productsPublished.all().map(rowToProduct);
+  return { reviewCount: reviews.length, productCount: products.length, reviews: reviews.slice(0, 6), products: products.slice(0, 8) };
+}
+
 function getAreas() {
   try {
     const raw = JSON.parse(q.getSetting.get('service_areas').value);
@@ -466,7 +473,7 @@ async function handle(req, res) {
   }
 
   if (method === 'GET' && (p === '/en' || p === '/en/')) {
-    return send(res, 200, renderPublic(getAreas(), SITE, getContentMap(), 'en', { reviewCount: q.reviewsPublished.all().length, productCount: q.productsPublished.all().length }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+    return send(res, 200, renderPublic(getAreas(), SITE, getContentMap(), 'en', homeExtra()), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
   }
   if (method === 'GET' && p.startsWith('/en/area/')) {
     const slugEn = decodeURIComponent(p.slice(9)).replace(/\/+$/, '');
@@ -475,7 +482,7 @@ async function handle(req, res) {
     return send(res, 404, '<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Page not found</title><p style="font-family:sans-serif;padding:40px">Page not found. <a href="/en">Back to home</a></p>', { 'Content-Type': 'text/html; charset=utf-8' });
   }
   if (method === 'GET' && (p === '/' || p === '/index.html')) {
-    return send(res, 200, renderPublic(getAreas(), SITE, getContentMap(), 'ko', { reviewCount: q.reviewsPublished.all().length, productCount: q.productsPublished.all().length }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+    return send(res, 200, renderPublic(getAreas(), SITE, getContentMap(), 'ko', homeExtra()), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
   }
   if (method === 'GET' && (p === '/admin' || p === '/admin/')) {
     return send(res, 200, adminHtml, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' });
