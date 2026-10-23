@@ -159,7 +159,7 @@ const q = {
 function homeExtra() {
   const reviews = q.reviewsPublished.all().map(rowToReview);
   const products = q.productsPublished.all().map(rowToProduct);
-  return { reviewCount: reviews.length, productCount: products.length, reviews: reviews.slice(0, 5), products: products.slice(0, 5) };
+  return { reviewCount: reviews.length, productCount: products.length, reviews: reviews.slice(0, 3), products: products.slice(0, 5) };
 }
 
 function getAreas() {
