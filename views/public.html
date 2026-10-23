@@ -89,6 +89,7 @@
     letter-spacing: -0.03em; line-height: 1.25;
   }
   .hero h1 .hl { color: var(--accent); }
+  @media (max-width: 480px) { .hero h1 { font-size: clamp(1.15rem, 5.4vw, 1.6rem); } }
   .hero-lead { text-wrap: pretty; margin-top: 16px; max-width: 470px; color: #5b6075; font-size: 1.02rem; line-height: 1.75; }
   .hero-cta { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 10px; }
   .hero-cta a {
@@ -119,15 +120,19 @@
   .hm-sec { width: 100%; max-width: 1040px; margin-top: 44px; }
   .hm-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
   .hm-head h2 { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; }
-  .hm-head a { font-size: 0.86rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
-  .hm-head a:hover { text-decoration: underline; }
   .hm-grid { display: grid; gap: 16px; }
   .hm-prod { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .hm-rev { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  /* phones: one swipeable row */
   @media (max-width: 800px) {
-    .hm-prod, .hm-rev { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-    .hm-card:nth-child(n+5) { display: none; }
+    .hm-grid { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; margin: 0 -20px; padding: 2px 20px 8px; scrollbar-width: none; }
+    .hm-grid::-webkit-scrollbar { display: none; }
+    .hm-card { flex: 0 0 64%; max-width: 260px; scroll-snap-align: start; }
   }
+  .hm-more { display: flex; justify-content: center; margin-top: 18px; }
+  .hm-more-btn { display: inline-flex; align-items: center; justify-content: center; background: #fff; color: var(--ink); border: 1.5px solid var(--border); border-radius: 999px; padding: 12px 30px; font-size: 0.92rem; font-weight: 800; transition: border-color 0.15s ease, color 0.15s ease; }
+  .hm-more-btn::after { content: "→"; margin-left: 8px; }
+  .hm-more-btn:hover { border-color: var(--accent); color: var(--accent); }
   .hm-card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 50px -36px var(--shadow); transition: transform 0.15s ease, box-shadow 0.15s ease; }
   .hm-card:hover { transform: translateY(-3px); box-shadow: 0 28px 56px -30px var(--shadow); }
   .hm-thumb { aspect-ratio: 4 / 3; background: var(--card-2); }

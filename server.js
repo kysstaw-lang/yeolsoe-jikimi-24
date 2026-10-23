@@ -155,11 +155,11 @@ const q = {
   putSetting: db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'),
 };
 
-/** Published products and reviews for the home page (the teasers show the newest few, counts are totals). */
+/** Published products and reviews for the home page (one row of the newest items; counts are totals). */
 function homeExtra() {
   const reviews = q.reviewsPublished.all().map(rowToReview);
   const products = q.productsPublished.all().map(rowToProduct);
-  return { reviewCount: reviews.length, productCount: products.length, reviews: reviews.slice(0, 6), products: products.slice(0, 8) };
+  return { reviewCount: reviews.length, productCount: products.length, reviews: reviews.slice(0, 3), products: products.slice(0, 4) };
 }
 
 function getAreas() {
