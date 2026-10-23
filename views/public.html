@@ -118,7 +118,10 @@
   /* ---------- home product / review teasers ---------- */
 
   .hm-sec { width: 100%; max-width: 1040px; margin-top: 44px; }
-  .hm-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .hm-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .hm-arrow { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: #fff; border: 1px solid var(--border); color: var(--ink); transition: border-color 0.15s ease, color 0.15s ease; }
+  .hm-arrow:hover { border-color: var(--accent); color: var(--accent); }
+  .hm-arrow svg { width: 16px; height: 16px; }
   .hm-head h2 { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; }
   .hm-grid { display: grid; gap: 16px; }
   .hm-prod, .hm-rev { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
@@ -148,17 +151,16 @@
   .hm-more-btn { display: inline-flex; align-items: center; justify-content: center; background: #fff; color: var(--ink); border: 1.5px solid var(--border); border-radius: 999px; padding: 12px 30px; font-size: 0.92rem; font-weight: 800; transition: border-color 0.15s ease, color 0.15s ease; }
   .hm-more-btn::after { content: "→"; margin-left: 8px; }
   .hm-more-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .hm-card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 50px -36px var(--shadow); transition: transform 0.15s ease, box-shadow 0.15s ease; }
-  .hm-card:hover { transform: translateY(-3px); box-shadow: 0 28px 56px -30px var(--shadow); }
-  .hm-thumb { aspect-ratio: 4 / 3; background: var(--card-2); }
-  .hm-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .hm-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
-  .hm-card .rv-tags { display: flex; flex-wrap: wrap; gap: 5px; }
-  .hm-card .rv-tags:empty { display: none; }
-  .hm-card .rv-tag { font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
-  .hm-card .rv-tag.gray { background: var(--card-2); color: var(--muted); }
-  .hm-card h3 { margin: 0; font-size: 0.94rem; font-weight: 800; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .hm-price { margin-top: auto; font-size: 0.88rem; font-weight: 800; }
+  /* products: big rounded photo with a badge, plain text underneath */
+  .hm-card { display: block; }
+  .hm-pimg { position: relative; aspect-ratio: 1 / 0.95; border-radius: 18px; overflow: hidden; background: var(--card-2); }
+  .hm-pimg img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.35s ease; }
+  .hm-card:hover .hm-pimg img { transform: scale(1.04); }
+  .hm-pbadge { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.94); color: var(--ink); font-size: 0.7rem; font-weight: 800; padding: 5px 11px; border-radius: 999px; box-shadow: 0 2px 8px rgba(20, 23, 31, 0.14); }
+  .hm-ptext { padding: 10px 2px 0; display: flex; flex-direction: column; gap: 3px; }
+  .hm-card h3 { margin: 0; font-size: 0.92rem; font-weight: 700; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hm-pdesc { font-size: 0.84rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hm-price { margin-top: 1px; font-size: 0.9rem; font-weight: 800; }
   .hm-date { margin-top: auto; font-size: 0.74rem; color: var(--muted); }
 
   /* ---------- hero text ---------- */
