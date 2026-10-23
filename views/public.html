@@ -121,14 +121,28 @@
   .hm-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
   .hm-head h2 { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; }
   .hm-grid { display: grid; gap: 16px; }
-  .hm-prod { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .hm-rev { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .hm-prod, .hm-rev { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
   /* phones: one swipeable row */
   @media (max-width: 800px) {
-    .hm-grid { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; margin: 0 -20px; padding: 2px 20px 8px; scrollbar-width: none; }
+    .hm-grid { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; margin: 0 -20px; padding: 2px 20px 8px; scroll-padding-left: 20px; scrollbar-width: none; }
     .hm-grid::-webkit-scrollbar { display: none; }
     .hm-card { flex: 0 0 64%; max-width: 260px; scroll-snap-align: start; }
+    .hm-rcard { flex: 0 0 56%; max-width: 230px; scroll-snap-align: start; }
   }
+  /* work reviews: tall photo cards with the text on the picture */
+  .hm-rcard { position: relative; display: block; aspect-ratio: 3 / 4; border-radius: 20px; overflow: hidden; background: linear-gradient(160deg, #3b4160, #14171f); box-shadow: 0 24px 50px -30px var(--shadow); transition: transform 0.15s ease, box-shadow 0.15s ease; isolation: isolate; }
+  .hm-rcard:hover { transform: translateY(-3px); box-shadow: 0 28px 56px -26px var(--shadow); }
+  .hm-rcard img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; z-index: -2; transition: transform 0.35s ease; }
+  .hm-rcard:hover img { transform: scale(1.04); }
+  .hm-rcard::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(to top, rgba(10, 12, 20, 0.86) 0%, rgba(10, 12, 20, 0.45) 42%, rgba(10, 12, 20, 0) 68%); }
+  .hm-pc { position: absolute; top: 10px; right: 10px; background: rgba(10, 12, 20, 0.55); color: #fff; font-size: 0.68rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; backdrop-filter: blur(4px); }
+  .hm-rover { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 14px 15px; display: flex; flex-direction: column; gap: 6px; color: #fff; }
+  .hm-rover .rv-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .hm-rover .rv-tags:empty { display: none; }
+  .hm-rover .rv-tag { font-size: 0.66rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.22); color: #fff; backdrop-filter: blur(4px); }
+  .hm-rover .rv-tag.gray { background: rgba(255, 255, 255, 0.14); }
+  .hm-rover h3 { margin: 0; font-size: 0.92rem; font-weight: 800; line-height: 1.38; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .hm-rover .hm-date { margin: 0; color: rgba(255, 255, 255, 0.72); }
   .hm-empty { background: var(--card); border: 1px dashed var(--border); border-radius: 18px; padding: 38px 20px; text-align: center; color: var(--muted); font-size: 0.92rem; }
   .hm-more { display: flex; justify-content: center; margin-top: 18px; }
   .hm-more-btn { display: inline-flex; align-items: center; justify-content: center; background: #fff; color: var(--ink); border: 1.5px solid var(--border); border-radius: 999px; padding: 12px 30px; font-size: 0.92rem; font-weight: 800; transition: border-color 0.15s ease, color 0.15s ease; }
