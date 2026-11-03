@@ -12,6 +12,7 @@ const { translateKo, translateKoToEn, primaryProvider } = require('./lib/transla
 const { createStore } = require('./lib/i18n-store');
 const SEED_QA = require('./lib/seed-qa');
 const { notifyInquiry } = require('./lib/sms');
+const { buildLlms } = require('./lib/llms');
 
 const PROD = process.env.NODE_ENV === 'production';
 const PORT = Number(process.env.PORT) || 3000;
@@ -217,7 +218,7 @@ const q = {
 function homeExtra() {
   const reviews = q.reviewsPublished.all().map(rowToReview);
   const products = q.productsPublished.all().map(rowToProduct);
-  return { reviewCount: reviews.length, productCount: products.length, reviews: reviews.slice(0, 3), products: products.slice(0, 5), showProducts: SITE.show.products, showReviews: SITE.show.reviews };
+  return { faq: q.qaPublished.all('faq').map(rowToQa).slice(0, 8), reviewCount: reviews.length, productCount: products.length, reviews: reviews.slice(0, 3), products: products.slice(0, 5), showProducts: SITE.show.products, showReviews: SITE.show.reviews };
 }
 
 /* ---------- editable site settings (admin) ---------- */
@@ -494,6 +495,14 @@ function setAreas(list) {
 
 const adminHtml = renderAdmin();
 const llmsTxt = fs.readFileSync(path.join(__dirname, 'static', 'llms.txt'), 'utf8');
+const SITE_ASSETS = {};
+for (const [route, file, type] of [
+  ['/og-cover.png', 'og-cover.png', 'image/png'],
+  ['/apple-touch-icon.png', 'apple-touch-icon.png', 'image/png'],
+  ['/favicon-32.png', 'favicon-32.png', 'image/png'],
+  ['/favicon-16.png', 'favicon-16.png', 'image/png'],
+  ['/favicon.ico', 'favicon-32.png', 'image/png'],
+]) SITE_ASSETS[route] = { body: fs.readFileSync(path.join(__dirname, 'static', file)), type };
 
 function makeLimiter(max, windowMs) {
   const hits = new Map();
@@ -692,15 +701,33 @@ async function handle(req, res) {
     // AI search / assistant crawlers get their own groups (a bot that matches a specific group ignores the * group),
     // so the private paths are repeated in each of them.
     const rules = 'Allow: /\nDisallow: /admin\nDisallow: /api/\n';
+    const groups = [
+      ['Googlebot', 'Bingbot', 'Yeti', 'Daumoa'], // search engines (Yeti = Naver, Daumoa = Daum)
+      ['OAI-SearchBot', 'ChatGPT-User', 'GPTBot'], // OpenAI
+      ['Claude-SearchBot', 'Claude-User', 'ClaudeBot'], // Anthropic
+      ['Google-Extended'], // Gemini
+      ['PerplexityBot', 'Perplexity-User'],
+      ['Applebot', 'Applebot-Extended'],
+      ['*'],
+    ];
     const txt =
-      `User-agent: OAI-SearchBot\n${rules}\n` +
-      `User-agent: ChatGPT-User\n${rules}\n` +
-      `User-agent: *\n${rules}\n` +
-      `Sitemap: ${SITE.siteUrl}/sitemap.xml\n`;
+      `# ${SITE.bizName} - search and AI crawlers are welcome.\n# Business summary for AI: ${SITE.siteUrl}/llms.txt (full copy: ${SITE.siteUrl}/llms-full.txt)\n\n` +
+      groups.map((g) => g.map((ua) => `User-agent: ${ua}\n`).join('') + rules).join('\n') +
+      `\nSitemap: ${SITE.siteUrl}/sitemap.xml\n`;
     return send(res, 200, txt, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
   }
-  if (method === 'GET' && p === '/llms.txt') {
-    return send(res, 200, llmsTxt.split('@@PHONE@@').join(SITE.phone), { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+  if (method === 'GET' && (p === '/llms.txt' || p === '/llms-full.txt')) {
+    const data = {
+      areas: getAreas().map((n) => ({ name: n, slug: AREAS.BY_NAME[n].slug })),
+      faq: q.qaPublished.all('faq'),
+      guide: q.qaPublished.all('guide'),
+      products: q.productsPublished.all(),
+      reviews: q.reviewsPublished.all(),
+    };
+    return send(res, 200, buildLlms(llmsTxt, SITE, data, p === '/llms-full.txt'), { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+  }
+  if (method === 'GET' && SITE_ASSETS[p]) {
+    return send(res, 200, SITE_ASSETS[p].body, { 'Content-Type': SITE_ASSETS[p].type, 'Cache-Control': 'public, max-age=86400' });
   }
   if (method === 'GET' && p === '/sitemap.xml') {
     return send(res, 200, renderSitemap(getAreas(), SITE, q.reviewsPublished.all().map((r) => r.id), q.productsPublished.all().map((r) => r.id)), { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'no-cache' });
