@@ -25,6 +25,8 @@ var pdLoaded = false;
 var pdUploading = 0;
 var siteLoaded = false;
 var siteData = null;
+var QA = { faq: { items: [], sel: null, drafts: {}, loaded: false }, guide: { items: [], sel: null, drafts: {}, loaded: false } };
+var qaKind = 'faq';
 
 function $(id) { return document.getElementById(id); }
 
@@ -122,6 +124,7 @@ $('logoutBtn').addEventListener('click', function () {
     pdSel = null;
     siteLoaded = false;
     siteData = null;
+    QA = { faq: { items: [], sel: null, drafts: {}, loaded: false }, guide: { items: [], sel: null, drafts: {}, loaded: false } };
     showAuth();
   });
 });
@@ -164,6 +167,8 @@ function setView(v) {
   $('reviewsView').hidden = v !== 'reviews';
   $('productsView').hidden = v !== 'products';
   $('siteView').hidden = v !== 'site';
+  $('qaView').hidden = v !== 'faq' && v !== 'guide';
+  if (v === 'faq' || v === 'guide') { qaKind = v; renderQaHead(); if (!QA[v].loaded) loadQa(v).catch(function () {}); else { renderQaList(); renderQaEditor(); } }
   if (v === 'site' && !siteLoaded) loadSite().catch(function () {});
   if (v === 'products' && !pdLoaded) loadProducts().catch(function () {});
   if (v === 'reviews' && !rvLoaded) loadReviews().catch(function () {});
@@ -479,7 +484,7 @@ function renderEditor() {
       '<button type="button" class="btn-primary" id="ce-save">저장</button>' +
     '</div>' +
     '<div class="ce-note">비워 둔 칸은 자동 문구가 그대로 쓰여요. 서비스 중인 구만 홈과 상세 페이지에 나옵니다.<br>' +
-      '저장하면 영어 사이트(English)에는 이 글이 <b>자동으로 번역</b>되어 나와요' + (translatorName ? ' · 번역: ' + esc(TRANSLATOR_LABEL[translatorName] || translatorName) : '') + '.</div>' +
+      '저장하면 영어·중국어·일본어 사이트에는 이 글이 <b>자동으로 번역</b>되어 나와요' + (translatorName ? ' · 번역: ' + esc(TRANSLATOR_LABEL[translatorName] || translatorName) : '') + '.</div>' +
     '<details class="ce-en"><summary>영어로 자동 번역된 내용 보기 (읽기 전용)</summary>' + englishPreview(item) +
       (item.active ? '<a class="ce-en-link" href="/en/area/' + esc(item.slug) + '" target="_blank" rel="noopener">영어 상세 페이지 보기</a>' : '') + '</details>';
   updateDescCount();
@@ -526,9 +531,9 @@ function saveContent(values, done) {
     var t = j.translation || {};
     if (t.status === 'failed') {
       s.style.color = '#b45309';
-      s.textContent = '저장했어요 · 영어 번역은 실패했어요 (다시 저장하면 재시도해요)';
+      s.textContent = '저장했어요 · 일부 번역은 실패했어요 (다시 저장하면 재시도해요)';
     } else {
-      s.textContent = done || (t.status === 'ok' ? '✓ 저장했어요 · 영어 번역도 완료' : '✓ 저장했어요');
+      s.textContent = done || (t.status === 'ok' ? '✓ 저장했어요 · 번역도 완료' : '✓ 저장했어요');
     }
     clearTimeout(savedTimer);
     savedTimer = setTimeout(function () { var x = $('ce-saved'); if (x) x.textContent = ''; }, 6000);
@@ -632,7 +637,7 @@ function renderRvEditor() {
     '<label class="rv-pub"><input type="checkbox" id="rv-pub"' + (d.published ? ' checked' : '') + '> 홈페이지에 공개</label>' +
     '<div class="ce-actions">' + (isNew ? '' : '<button type="button" class="btn-ghost" id="rv-del">삭제</button>') +
       '<span class="spacer"></span><span class="ce-saved" id="rv-saved"></span><button type="button" class="btn-primary" id="rv-save">저장</button></div>' +
-    '<div class="ce-note">저장하면 영어 사이트에는 제목과 내용이 자동으로 번역되어 나와요. 사진의 위치 정보 등은 올릴 때 제거돼요.</div>';
+    '<div class="ce-note">저장하면 영어·중국어·일본어 사이트에는 제목과 내용이 자동으로 번역되어 나와요. 사진의 위치 정보 등은 올릴 때 제거돼요.</div>';
   renderPhotos();
 }
 
@@ -764,7 +769,7 @@ function saveReview() {
       var m = $('rv-saved');
       if (m) {
         m.style.color = j.translation && j.translation.failed ? '#b45309' : '';
-        m.textContent = j.translation && j.translation.failed ? '저장했어요 · 영어 번역은 실패했어요 (다시 저장하면 재시도해요)' : '✓ 저장했어요';
+        m.textContent = j.translation && j.translation.failed ? '저장했어요 · 일부 번역은 실패했어요 (다시 저장하면 재시도해요)' : '✓ 저장했어요';
         setTimeout(function () { var x = $('rv-saved'); if (x) x.textContent = ''; }, 6000);
       }
     });
@@ -843,7 +848,7 @@ function renderPdEditor() {
     '<label class="rv-pub"><input type="checkbox" id="pd-pub"' + (d.published ? ' checked' : '') + '> 홈페이지에 공개</label>' +
     '<div class="ce-actions">' + (isNew ? '' : '<button type="button" class="btn-ghost" id="pd-del">삭제</button>') +
       '<span class="spacer"></span><span class="ce-saved" id="pd-saved"></span><button type="button" class="btn-primary" id="pd-save">저장</button></div>' +
-    '<div class="ce-note">저장하면 영어 사이트에는 이름·가격·설명이 자동으로 번역되어 나와요. 사진의 위치 정보 등은 올릴 때 제거돼요.</div>';
+    '<div class="ce-note">저장하면 영어·중국어·일본어 사이트에는 이름·가격·설명이 자동으로 번역되어 나와요. 사진의 위치 정보 등은 올릴 때 제거돼요.</div>';
   renderPdPhotos();
 }
 
@@ -951,7 +956,7 @@ function saveProduct() {
       var m = $('pd-saved');
       if (m) {
         m.style.color = j.translation && j.translation.failed ? '#b45309' : '';
-        m.textContent = j.translation && j.translation.failed ? '저장했어요 · 영어 번역은 실패했어요 (다시 저장하면 재시도해요)' : '✓ 저장했어요';
+        m.textContent = j.translation && j.translation.failed ? '저장했어요 · 일부 번역은 실패했어요 (다시 저장하면 재시도해요)' : '✓ 저장했어요';
         setTimeout(function () { var x = $('pd-saved'); if (x) x.textContent = ''; }, 6000);
       }
     });
@@ -1005,7 +1010,7 @@ function renderSite() {
       stCheck('st-show-reviews', '홈에 작업 후기 구역 보이기', c.show.reviews) +
       stCheck('st-show-dock', '화면 아래 고정 연락 버튼(전화 상담 / 문의하기) 보이기', c.show.dock) + '</div>' +
     '<div class="ce-actions"><span class="spacer"></span><span class="ce-saved" id="st-saved"></span><button type="button" class="btn-primary" id="st-save">저장</button></div>' +
-    '<div class="ce-note">저장하면 영어 사이트의 제목·설명·영업시간은 자동으로 번역돼요. 칸을 비우고 저장하면 기본 문구로 돌아가요.</div>';
+    '<div class="ce-note">저장하면 영어·중국어·일본어 사이트의 제목·설명·영업시간은 자동으로 번역돼요. 칸을 비우고 저장하면 기본 문구로 돌아가요.</div>';
 }
 
 function readSiteForm() {
@@ -1030,7 +1035,7 @@ $('siteEditor').addEventListener('click', function (e) {
     renderSite();
     var m = $('st-saved');
     m.style.color = j.translation && j.translation.failed ? '#b45309' : '';
-    m.textContent = j.translation && j.translation.failed ? '저장했어요 · 영어 번역은 실패했어요 (다시 저장하면 재시도해요)' : '✓ 저장했어요';
+    m.textContent = j.translation && j.translation.failed ? '저장했어요 · 일부 번역은 실패했어요 (다시 저장하면 재시도해요)' : '✓ 저장했어요';
     setTimeout(function () { var x = $('st-saved'); if (x) x.textContent = ''; }, 6000);
   }).catch(function (err) {
     var m = $('st-saved');
@@ -1039,6 +1044,155 @@ $('siteEditor').addEventListener('click', function (e) {
     if (b) { b.disabled = false; b.textContent = '저장'; }
   });
 });
+
+/* ---------- FAQ / checklist ---------- */
+
+var QA_LABEL = {
+  faq: { title: '자주 묻는 질문', desc: '손님이 자주 묻는 질문과 답을 올리면 상단 메뉴의 “자주 묻는 질문” 페이지에 나와요.', q: '질문', a: '답변', newBtn: '+ 새 질문 추가', link: '/faq', ph: '예) 비용은 어떻게 되나요?', empty: '아직 등록한 질문이 없어요.' },
+  guide: { title: '출동 전 확인사항', desc: '기사님을 부르기 전에 손님이 확인하면 좋은 내용을 올리면 “출장 전 확인사항” 페이지에 순서대로 나와요.', q: '제목', a: '내용', newBtn: '+ 새 항목 추가', link: '/guide', ph: '예) 배터리부터 확인해 보세요', empty: '아직 등록한 항목이 없어요.' },
+};
+
+function renderQaHead() {
+  var L = QA_LABEL[qaKind];
+  $('qaTitle').textContent = L.title;
+  $('qaDesc').textContent = L.desc;
+  $('qaNew').textContent = L.newBtn;
+}
+
+function loadQa(kind) {
+  return api('GET', '/api/admin/qa?kind=' + kind).then(function (j) {
+    var S = QA[kind];
+    S.items = j.items || [];
+    S.loaded = true;
+    if (S.sel === null && S.items.length) S.sel = S.items[0].id;
+    if (qaKind === kind) { renderQaList(); renderQaEditor(); }
+  });
+}
+
+function qaDraftFor(id) {
+  var S = QA[qaKind];
+  if (S.drafts[id]) return S.drafts[id];
+  var it = id === 'new' ? null : S.items.find(function (r) { return r.id === id; });
+  return it ? { question: it.question, answer: it.answer, published: it.published } : { question: '', answer: '', published: true };
+}
+
+function renderQaList() {
+  var S = QA[qaKind];
+  var rows = [];
+  if (S.sel === 'new') rows.push('<div class="qa-row selected" data-id="new"><span class="qa-n">+</span><span class="qa-t">새 항목 (작성 중)</span></div>');
+  S.items.forEach(function (it, i) {
+    rows.push('<div class="qa-row' + (it.id === S.sel ? ' selected' : '') + '" data-id="' + it.id + '"><span class="qa-n">' + (i + 1) + '</span>' +
+      '<span class="qa-t">' + esc(it.question) + (it.published ? '' : ' <span class="off">비공개</span>') + '</span>' +
+      '<span class="qa-mv"><button type="button" data-mv="up" aria-label="위로">▲</button><button type="button" data-mv="down" aria-label="아래로">▼</button></span></div>');
+  });
+  $('qaList').innerHTML = rows.length ? rows.join('') : '<div class="rv-empty-list">' + QA_LABEL[qaKind].empty + ' “' + QA_LABEL[qaKind].newBtn.replace('+ ', '') + '”을 눌러 시작하세요.</div>';
+}
+
+function renderQaEditor() {
+  var S = QA[qaKind];
+  var L = QA_LABEL[qaKind];
+  if (S.sel === null) {
+    $('qaEditor').innerHTML = '<div class="rv-empty-list">왼쪽에서 항목을 고르거나 위의 버튼으로 새로 추가해 주세요.</div>';
+    return;
+  }
+  var d = qaDraftFor(S.sel);
+  var isNew = S.sel === 'new';
+  $('qaEditor').innerHTML =
+    '<div class="ce-head"><h3>' + (isNew ? '새 항목' : '항목 수정') + '</h3>' +
+      (!isNew && d.published ? '<a href="' + L.link + '" target="_blank" rel="noopener">홈페이지에서 보기</a>' : '') + '</div>' +
+    '<div class="field"><label for="qa-q">' + L.q + '</label><input id="qa-q" type="text" maxlength="200" value="' + esc(d.question) + '" placeholder="' + esc(L.ph) + '"></div>' +
+    '<div class="field"><label for="qa-a">' + L.a + '<span class="ce-hint">빈 줄을 넣으면 문단이 나뉘어요</span></label><textarea id="qa-a" rows="8" maxlength="4000">' + esc(d.answer) + '</textarea></div>' +
+    '<label class="rv-pub"><input type="checkbox" id="qa-pub"' + (d.published ? ' checked' : '') + '> 홈페이지에 공개</label>' +
+    '<div class="ce-actions">' + (isNew ? '' : '<button type="button" class="btn-ghost" id="qa-del">삭제</button>') +
+      '<span class="spacer"></span><span class="ce-saved" id="qa-saved"></span><button type="button" class="btn-primary" id="qa-save">저장</button></div>' +
+    '<div class="ce-note">저장하면 영어·중국어·일본어 사이트에는 자동으로 번역되어 나와요. 순서는 왼쪽 목록의 ▲▼ 버튼으로 바꿔요.</div>';
+}
+
+function readQaForm() {
+  var S = QA[qaKind];
+  var d = qaDraftFor(S.sel);
+  d.question = $('qa-q').value;
+  d.answer = $('qa-a').value;
+  d.published = $('qa-pub').checked;
+  S.drafts[S.sel] = d;
+  return d;
+}
+
+function selectQa(id) {
+  var S = QA[qaKind];
+  if ($('qa-q')) readQaForm();
+  S.sel = id;
+  renderQaList();
+  renderQaEditor();
+}
+
+$('qaNew').addEventListener('click', function () { selectQa('new'); $('qa-q').focus(); });
+
+$('qaList').addEventListener('click', function (e) {
+  var S = QA[qaKind];
+  var row = e.target.closest('.qa-row');
+  if (!row) return;
+  var id = row.getAttribute('data-id');
+  var mv = e.target.closest('[data-mv]');
+  if (mv && id !== 'new') {
+    e.stopPropagation();
+    api('POST', '/api/admin/qa/' + id + '/move', { dir: mv.getAttribute('data-mv') }).then(function (j) {
+      S.items = j.items || [];
+      renderQaList();
+    }).catch(function () {});
+    return;
+  }
+  selectQa(id === 'new' ? 'new' : Number(id));
+});
+
+$('qaEditor').addEventListener('input', function (e) { if (e.target.id && e.target.id.indexOf('qa-') === 0) readQaForm(); });
+$('qaEditor').addEventListener('change', function (e) { if (e.target.id === 'qa-pub') readQaForm(); });
+
+$('qaEditor').addEventListener('click', function (e) {
+  var S = QA[qaKind];
+  if (e.target.closest('#qa-save')) saveQa();
+  else if (e.target.closest('#qa-del')) {
+    armOrRun($('qa-del'), '삭제', '한 번 더 누르면 삭제돼요', function () {
+      api('DELETE', '/api/admin/qa/' + S.sel).then(function () {
+        delete S.drafts[S.sel];
+        S.sel = null;
+        return loadQa(qaKind);
+      }).catch(function () {});
+    });
+  }
+});
+
+function saveQa() {
+  var S = QA[qaKind];
+  var kind = qaKind;
+  var d = readQaForm();
+  var msg = $('qa-saved');
+  if (!d.question.trim()) { msg.style.color = 'var(--danger)'; msg.textContent = QA_LABEL[kind].q + '을(를) 입력해 주세요.'; $('qa-q').focus(); return; }
+  var btn = $('qa-save');
+  btn.disabled = true;
+  btn.textContent = '저장·번역 중…';
+  msg.style.color = '';
+  msg.textContent = '';
+  var isNew = S.sel === 'new';
+  var payload = { kind: kind, question: d.question, answer: d.answer, published: d.published };
+  api(isNew ? 'POST' : 'PUT', isNew ? '/api/admin/qa' : '/api/admin/qa/' + S.sel, payload).then(function (j) {
+    delete S.drafts[S.sel];
+    S.sel = j.item.id;
+    return loadQa(kind).then(function () {
+      var m = $('qa-saved');
+      if (m) {
+        m.style.color = j.translation && j.translation.failed ? '#b45309' : '';
+        m.textContent = j.translation && j.translation.failed ? '저장했어요 · 일부 번역은 실패했어요 (다시 저장하면 재시도해요)' : '✓ 저장했어요';
+        setTimeout(function () { var x = $('qa-saved'); if (x) x.textContent = ''; }, 6000);
+      }
+    });
+  }).catch(function (err) {
+    var m = $('qa-saved');
+    if (m) { m.style.color = 'var(--danger)'; m.textContent = (err && err.message) || '저장하지 못했어요. 다시 시도해 주세요.'; }
+    var b = $('qa-save');
+    if (b) { b.disabled = false; b.textContent = '저장'; }
+  });
+}
 
 /* ---------- start ---------- */
 

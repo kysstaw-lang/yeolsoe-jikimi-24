@@ -171,10 +171,13 @@
 
   .menu {
     margin-top: 22px;
-    display: inline-flex;
+    display: flex;
+    flex-wrap: wrap;
+    width: fit-content;
+    max-width: 100%;
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: 26px;
     padding: 4px;
     gap: 2px;
   }
@@ -552,6 +555,16 @@
   .ce-note { margin-top: 12px; font-size: 0.76rem; color: var(--muted); line-height: 1.6; }
 
 
+  /* ---------- FAQ / checklist ---------- */
+  .qa-row { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--border); border-radius: 11px; padding: 9px 10px; cursor: pointer; }
+  .qa-row.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .qa-n { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--card-2); color: var(--muted); font-size: 0.74rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+  .qa-t { flex: 1; min-width: 0; font-size: 0.86rem; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qa-t .off { color: var(--new-fg); font-weight: 700; font-size: 0.74rem; }
+  .qa-mv { display: flex; flex-direction: column; gap: 1px; }
+  .qa-mv button { border: none; background: none; color: var(--muted); font-size: 0.62rem; line-height: 1; padding: 3px 5px; border-radius: 5px; cursor: pointer; }
+  .qa-mv button:hover { background: var(--card-2); color: var(--ink); }
+
   /* ---------- site settings ---------- */
   .st-form { max-width: 760px; }
   .st-sec { margin: 0 0 22px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
@@ -642,6 +655,8 @@
     <button type="button" data-view="content">구별 내용 <span class="n" id="menu-content">0/25</span></button>
     <button type="button" data-view="reviews">작업 후기 <span class="n" id="menu-reviews">0</span></button>
     <button type="button" data-view="products">제품 <span class="n" id="menu-products">0</span></button>
+    <button type="button" data-view="faq">자주 묻는 질문</button>
+    <button type="button" data-view="guide">출동 전 확인사항</button>
     <button type="button" data-view="site">사이트 설정</button>
   </nav>
 
@@ -743,6 +758,21 @@
     <div class="content-grid rv-admin-grid">
       <div class="content-list" id="rvList"></div>
       <div class="content-editor" id="rvEditor"></div>
+    </div>
+  </section>
+
+  <!-- ===== 자주 묻는 질문 / 출동 전 확인사항 ===== -->
+  <section id="qaView" hidden>
+    <div class="areas-head">
+      <div>
+        <h2 id="qaTitle"></h2>
+        <div class="areas-count" id="qaDesc"></div>
+      </div>
+      <button type="button" class="btn-primary" id="qaNew"></button>
+    </div>
+    <div class="content-grid rv-admin-grid">
+      <div class="content-list" id="qaList"></div>
+      <div class="content-editor" id="qaEditor"></div>
     </div>
   </section>
 

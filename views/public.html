@@ -8,7 +8,7 @@
 <title>@@TITLE@@</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="@@FONT_URL@@">
 <style>
   :root {
     --bg: #eef1f7;
@@ -53,7 +53,7 @@
   .page {
     max-width: 1120px;
     margin: 0 auto;
-    padding: 56px 20px 60px;
+    padding: 28px 20px 60px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -500,8 +500,8 @@
 </style>
 </head>
 <body>
+@@GNB@@
 <div class="page">
-  <div class="lang-row">@@LANG_SWITCH@@</div>
   <section class="hero" aria-labelledby="heroTitle">
     <div class="hero-copy">
       <div class="hero-badge"><span class="live" aria-hidden="true"></span>@@HOURS@@</div>
@@ -551,7 +551,7 @@
 
 @@HOME_SECTIONS@@
 
-  <div class="hero-text">
+  <div class="hero-text" id="areas">
     <div class="eyebrow">{{eyebrow}}</div>
     <h2>{{h1}}</h2>
     <p class="sub">@@HERO_SUB@@</p>

@@ -20,8 +20,13 @@ Website: https://www.서울열쇠.com/
 
 ## Official Website
 - Home: https://www.서울열쇠.com/
+- 제품: https://www.서울열쇠.com/products
 - 작업 후기: https://www.서울열쇠.com/reviews
+- 출장 전 확인사항: https://www.서울열쇠.com/guide
+- 자주 묻는 질문: https://www.서울열쇠.com/faq
 - English: https://www.서울열쇠.com/en
+- 中文: https://www.서울열쇠.com/zh
+- 日本語: https://www.서울열쇠.com/ja
 
 ## Contact
 - 전화: @@PHONE@@

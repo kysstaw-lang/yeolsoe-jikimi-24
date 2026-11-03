@@ -5,10 +5,12 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
-const { STR } = require('./lib/i18n');
-const { NAMES, renderPublic, renderAdmin, renderArea, renderSitemap, renderReviews, renderReview, renderProducts, renderProduct } = require('./lib/render');
+const { STR, LANGS, pageUrl } = require('./lib/i18n');
+const { NAMES, renderPublic, renderAdmin, renderArea, renderSitemap, renderReviews, renderReview, renderProducts, renderProduct, renderFaq, renderGuide } = require('./lib/render');
 const AREAS = require('./lib/areas');
-const { translateKoToEn, primaryProvider } = require('./lib/translate');
+const { translateKo, translateKoToEn, primaryProvider } = require('./lib/translate');
+const { createStore } = require('./lib/i18n-store');
+const SEED_QA = require('./lib/seed-qa');
 
 const PROD = process.env.NODE_ENV === 'production';
 const PORT = Number(process.env.PORT) || 3000;
@@ -24,6 +26,12 @@ const SITE = {
   bizName: process.env.SITE_BIZ_NAME || '열쇠 지킴이, 열쇠지킴이24시',
   owner: process.env.SITE_OWNER || '이문술',
   hoursEn: process.env.SITE_HOURS_EN || 'Open every day · 24-hour consultation',
+  hoursByLang: {
+    ko: process.env.SITE_HOURS || '연중무휴 24시간 상담',
+    en: process.env.SITE_HOURS_EN || 'Open every day · 24-hour consultation',
+    zh: '全年无休 · 24小时咨询',
+    ja: '年中無休 · 24時間ご相談受付',
+  },
   bizNameEn: process.env.SITE_BIZ_NAME_EN || 'Yeolsoe Jikimi 24 (열쇠지킴이24시)',
   ownerEn: process.env.SITE_OWNER_EN || '',
   links: {
@@ -115,6 +123,42 @@ db.exec(`
     updated_at INTEGER NOT NULL
   );
 `);
+db.exec(`
+  CREATE TABLE IF NOT EXISTS qa_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    question TEXT NOT NULL DEFAULT '',
+    answer TEXT NOT NULL DEFAULT '',
+    question_en TEXT NOT NULL DEFAULT '',
+    answer_en TEXT NOT NULL DEFAULT '',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    published INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_qa_kind ON qa_items(kind, sort_order, id);
+`);
+const i18n = createStore(db);
+
+/** Starter FAQ / "before we visit" content, inserted once so the pages are not empty on day one. */
+(function seedQa() {
+  if (db.prepare("SELECT value FROM settings WHERE key = 'qa_seeded'").get()) return;
+  if (db.prepare('SELECT COUNT(*) AS n FROM qa_items').get().n === 0) {
+    const ins = db.prepare(`INSERT INTO qa_items (kind, question, answer, question_en, answer_en, sort_order, published, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`);
+    const order = { faq: 0, guide: 0 };
+    const now = Date.now();
+    for (const it of SEED_QA) {
+      const id = ins.run(it.kind, it.ko.q, it.ko.a, it.en.q, it.en.a, ++order[it.kind], now, now).lastInsertRowid;
+      for (const l of ['zh', 'ja']) {
+        i18n.set('qa', id, 'question', l, it.ko.q, it[l].q);
+        i18n.set('qa', id, 'answer', l, it.ko.a, it[l].a);
+      }
+    }
+  }
+  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('qa_seeded', '1')").run();
+})();
+
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const contentCols = new Set(db.prepare('PRAGMA table_info(area_content)').all().map((c) => c.name));
@@ -149,6 +193,16 @@ const q = {
   productUpdate: db.prepare(`UPDATE products SET name = @name, category = @category, price = @price, description = @description, name_en = @name_en,
     price_en = @price_en, description_en = @description_en, photos = @photos, published = @published, updated_at = @updated_at WHERE id = @id`),
   productDelete: db.prepare('DELETE FROM products WHERE id = ?'),
+  qaByKind: db.prepare('SELECT * FROM qa_items WHERE kind = ? ORDER BY sort_order, id'),
+  qaPublished: db.prepare('SELECT * FROM qa_items WHERE kind = ? AND published = 1 ORDER BY sort_order, id'),
+  qaById: db.prepare('SELECT * FROM qa_items WHERE id = ?'),
+  qaMax: db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM qa_items WHERE kind = ?'),
+  qaInsert: db.prepare(`INSERT INTO qa_items (kind, question, answer, question_en, answer_en, sort_order, published, created_at, updated_at)
+    VALUES (@kind, @question, @answer, @question_en, @answer_en, @sort_order, @published, @created_at, @updated_at)`),
+  qaUpdate: db.prepare(`UPDATE qa_items SET question = @question, answer = @answer, question_en = @question_en, answer_en = @answer_en,
+    published = @published, updated_at = @updated_at WHERE id = @id`),
+  qaSetOrder: db.prepare('UPDATE qa_items SET sort_order = ? WHERE id = ?'),
+  qaDelete: db.prepare('DELETE FROM qa_items WHERE id = ?'),
   contentAll: db.prepare('SELECT * FROM area_content'),
   contentUpsert: db.prepare(`INSERT INTO area_content (name, intro, headline, body, description, intro_en, headline_en, body_en, description_en, updated_at)
     VALUES (@name, @intro, @headline, @body, @description, @intro_en, @headline_en, @body_en, @description_en, @updated_at)
@@ -169,19 +223,30 @@ function homeExtra() {
 
 const PHONE_RE = /^[0-9+\-\s()]{5,20}$/;
 const URL_RE = /^https?:\/\/[^\s<>"']{3,300}$/i;
+const emptyTr = () => ({ hours: '', l1: '', l2: '', sub: '' });
 const emptySiteConfig = () => ({
-  phone: '', hours: '', hoursEn: '', bizName: '', owner: '',
+  phone: '', hours: '', bizName: '', owner: '',
   links: { naver: '', daangn: '', google: '' },
-  hero: { l1: '', l2: '', sub: '' }, heroEn: { l1: '', l2: '', sub: '' },
+  hero: { l1: '', l2: '', sub: '' },
+  tr: { en: emptyTr(), zh: emptyTr(), ja: emptyTr() },
   show: { products: true, reviews: true, dock: true },
 });
 
 function loadSiteConfig() {
+  const c = emptySiteConfig();
   try {
     const row = q.getSetting.get('site_config');
-    return row ? Object.assign(emptySiteConfig(), JSON.parse(row.value)) : emptySiteConfig();
+    if (!row) return c;
+    const saved = JSON.parse(row.value);
+    Object.assign(c, saved);
+    // settings saved before Chinese / Japanese existed kept their English text in hoursEn / heroEn
+    c.tr = Object.assign({ en: emptyTr(), zh: emptyTr(), ja: emptyTr() }, saved.tr || {});
+    if (!saved.tr && (saved.hoursEn || saved.heroEn)) {
+      c.tr.en = { hours: saved.hoursEn || '', l1: (saved.heroEn || {}).l1 || '', l2: (saved.heroEn || {}).l2 || '', sub: (saved.heroEn || {}).sub || '' };
+    }
+    return c;
   } catch (e) {
-    return emptySiteConfig();
+    return c;
   }
 }
 
@@ -189,10 +254,16 @@ function loadSiteConfig() {
 function applySiteConfig(c) {
   const D = SITE_DEFAULTS;
   const hero = c.hero || {};
-  const heroEn = c.heroEn || {};
+  const t = c.tr || {};
   SITE.phone = c.phone || D.phone;
-  SITE.hours = c.hours || D.hours;
-  SITE.hoursEn = c.hours && c.hoursEn ? c.hoursEn : D.hoursEn;
+  SITE.hoursByLang = {
+    ko: c.hours || D.hoursByLang.ko,
+    en: (c.hours && t.en && t.en.hours) || D.hoursByLang.en,
+    zh: (c.hours && t.zh && t.zh.hours) || D.hoursByLang.zh,
+    ja: (c.hours && t.ja && t.ja.hours) || D.hoursByLang.ja,
+  };
+  SITE.hours = SITE.hoursByLang.ko;
+  SITE.hoursEn = SITE.hoursByLang.en;
   SITE.bizName = c.bizName || D.bizName;
   SITE.owner = c.owner || D.owner;
   SITE.links = {
@@ -200,13 +271,14 @@ function applySiteConfig(c) {
     daangn: (c.links && c.links.daangn) || D.links.daangn,
     google: (c.links && c.links.google) || D.links.google,
   };
+  const pick = (o) => ({ l1: (o || {}).l1, l2: (o || {}).l2, sub: (o || {}).sub });
   SITE.hero = hero.l1 || hero.l2 || hero.sub
-    ? { ko: { l1: hero.l1, l2: hero.l2, sub: hero.sub }, en: { l1: heroEn.l1, l2: heroEn.l2, sub: heroEn.sub } }
+    ? { ko: pick(hero), en: pick(t.en), zh: pick(t.zh), ja: pick(t.ja) }
     : null;
   SITE.show = Object.assign({ products: true, reviews: true, dock: true }, c.show || {});
 }
 
-function siteConfigInput(body, prev) {
+function siteConfigInput(body) {
   const b = body || {};
   const links = b.links || {};
   const link = (v) => { const t = str(v, 300); return URL_RE.test(t) ? t : ''; };
@@ -215,25 +287,28 @@ function siteConfigInput(body, prev) {
   const hero = b.hero || {};
   const show = b.show || {};
   return {
-    config: {
-      phone, hours: str(b.hours, 60), hoursEn: '', bizName: str(b.bizName, 80), owner: str(b.owner, 40),
+    config: Object.assign(emptySiteConfig(), {
+      phone, hours: str(b.hours, 60), bizName: str(b.bizName, 80), owner: str(b.owner, 40),
       links: { naver: link(links.naver), daangn: link(links.daangn), google: link(links.google) },
-      hero: { l1: str(hero.l1, 40), l2: str(hero.l2, 40), sub: str(hero.sub, 160) }, heroEn: { l1: '', l2: '', sub: '' },
+      hero: { l1: str(hero.l1, 40), l2: str(hero.l2, 40), sub: str(hero.sub, 160) },
       show: { products: show.products !== false, reviews: show.reviews !== false, dock: show.dock !== false },
-    },
+    }),
   };
 }
 
-/** English versions of the changed Korean texts; unchanged ones reuse the saved translation. */
+/** English / Chinese / Japanese versions of the changed Korean texts; unchanged ones reuse the saved translation. */
 async function translateSiteConfig(prev, next) {
   let failed = false;
-  const one = async (before, beforeEn, now) => {
-    if (!now) return '';
-    if (before === now && beforeEn) return beforeEn;
-    try { return (await translateKoToEn(now)).text; } catch (err) { console.warn('[translate] failed:', err.message); failed = true; return ''; }
-  };
-  next.hoursEn = await one(prev.hours, prev.hoursEn, next.hours);
-  for (const k of ['l1', 'l2', 'sub']) next.heroEn[k] = await one((prev.hero || {})[k], (prev.heroEn || {})[k], next.hero[k]);
+  const sources = { hours: next.hours, l1: next.hero.l1, l2: next.hero.l2, sub: next.hero.sub };
+  const before = { hours: prev.hours, l1: (prev.hero || {}).l1, l2: (prev.hero || {}).l2, sub: (prev.hero || {}).sub };
+  await Promise.all(['en', 'zh', 'ja'].map(async (lang) => {
+    const old = (prev.tr && prev.tr[lang]) || emptyTr();
+    for (const [field, now] of Object.entries(sources)) {
+      if (!now) { next.tr[lang][field] = ''; continue; }
+      if (before[field] === now && old[field]) { next.tr[lang][field] = old[field]; continue; }
+      try { next.tr[lang][field] = (await translateKo(now, lang)).text; } catch (err) { console.warn('[translate] failed:', err.message); failed = true; }
+    }
+  }));
   return failed;
 }
 
@@ -264,6 +339,7 @@ function rowToReview(row) {
   return {
     id: row.id, title: row.title, body: row.body, titleEn: row.title_en, bodyEn: row.body_en,
     region: row.region, service: row.service, photos, published: !!row.published, postedAt: row.posted_at,
+    tr: Object.assign({ en: { title: row.title_en, body: row.body_en } }, i18n.get('review', row.id)),
   };
 }
 
@@ -276,6 +352,7 @@ function rowToProduct(row) {
     id: row.id, name: row.name, category: row.category, price: row.price, description: row.description,
     nameEn: row.name_en, priceEn: row.price_en, descriptionEn: row.description_en,
     photos, published: !!row.published,
+    tr: Object.assign({ en: { name: row.name_en, price: row.price_en, description: row.description_en } }, i18n.get('product', row.id)),
   };
 }
 
@@ -289,6 +366,13 @@ function productInput(body, prevPhotos) {
     name, category: PRODUCT_CATEGORIES.includes(body.category) ? body.category : '',
     price: str(body.price, 60), description: str(body.description, 8000), photos, published: body.published === false ? 0 : 1,
   };
+}
+
+/** Plain prices need no machine translation: 148,000원 -> 148,000 韩元 / 148,000 ウォン. */
+function productPre(field, text, lang) {
+  if (field !== 'price' || !/^[\d,.\s]+원?$/.test(text)) return null;
+  const num = text.replace(/\s*원$/, '').trim();
+  return lang === 'zh' ? `${num} 韩元` : `${num} ウォン`;
 }
 
 async function translateProduct(prev, next) {
@@ -360,10 +444,43 @@ function readBuffer(req, limit) {
 
 const CONTENT_FIELDS = ['intro', 'headline', 'body', 'description', 'intro_en', 'headline_en', 'body_en', 'description_en'];
 
+/** Admin-written district text. Chinese / Japanese versions are added as intro_zh, intro_ja, ... */
 function getContentMap() {
   const map = {};
-  for (const row of q.contentAll.all()) map[row.name] = row;
+  for (const row of q.contentAll.all()) {
+    const m = Object.assign({}, row);
+    const t = i18n.get('area', row.name);
+    for (const l of ['zh', 'ja']) for (const f of ['intro', 'headline', 'body', 'description']) m[`${f}_${l}`] = t[l][f] || '';
+    map[row.name] = m;
+  }
   return map;
+}
+
+const QA_KINDS = ['faq', 'guide'];
+
+function rowToQa(row) {
+  return {
+    id: row.id, kind: row.kind, question: row.question, answer: row.answer, published: !!row.published, sort: row.sort_order,
+    tr: Object.assign({ en: { question: row.question_en, answer: row.answer_en } }, i18n.get('qa', row.id)),
+  };
+}
+
+function qaInput(body) {
+  const question = str(body.question, 200);
+  if (!question) return { error: '제목(질문)을 입력해 주세요.' };
+  return { question, answer: str(body.answer, 4000), published: body.published === false ? 0 : 1 };
+}
+
+/** English translation (columns) plus Chinese / Japanese (i18n store) for a FAQ or checklist item. */
+async function translateQa(id, prev, next) {
+  const out = { question_en: '', answer_en: '' };
+  let failed = false;
+  for (const [src, dst] of [['question', 'question_en'], ['answer', 'answer_en']]) {
+    if (!next[src]) continue;
+    if (prev && prev[src] === next[src] && prev[dst]) { out[dst] = prev[dst]; continue; }
+    try { out[dst] = (await translateKoToEn(next[src])).text; } catch (err) { console.warn('[translate] failed:', err.message); failed = true; }
+  }
+  return { out, failed };
 }
 
 function setAreas(list) {
@@ -512,6 +629,40 @@ function cookieHeader(req, value, maxAgeSec) {
 
 /* ---------- routes ---------- */
 
+const HTML_HEADERS = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' };
+const PUBLIC_KO_RE = /^(\/|\/index\.html|\/(area|reviews|products)\/[^/]+\/?|\/(reviews|products|faq|guide)\/?)$/;
+
+function notFoundPage(lang) {
+  const msg = lang === 'ko' ? '페이지를 찾을 수 없어요.' : 'Page not found.';
+  const back = lang === 'ko' ? '홈으로 가기' : 'Back to home';
+  return { status: 404, html: `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>${msg}</title><p style="font-family:sans-serif;padding:40px">${msg} <a href="${pageUrl(lang, '/')}">${back}</a></p>` };
+}
+
+/** Renders one public page. `rest` is the path without the language prefix. Resolves { status, html } or null. */
+function publicPage(lang, rest) {
+  const clean = rest.length > 1 ? rest.replace(/\/+$/, '') : rest;
+  const ok = (html) => ({ status: 200, html });
+  let m;
+  if (clean === '/' || (lang === 'ko' && clean === '/index.html')) return ok(renderPublic(getAreas(), SITE, getContentMap(), lang, homeExtra()));
+  if ((m = clean.match(/^\/area\/([^/]+)$/))) {
+    const html = renderArea(decodeURIComponent(m[1]), getAreas(), SITE, getContentMap(), lang);
+    return html ? ok(html) : notFoundPage(lang);
+  }
+  if (clean === '/reviews') return ok(renderReviews(q.reviewsPublished.all().map(rowToReview), SITE, lang));
+  if ((m = clean.match(/^\/reviews\/(\d+)$/))) {
+    const row = q.reviewById.get(Number(m[1]));
+    return row && row.published ? ok(renderReview(rowToReview(row), SITE, lang)) : notFoundPage(lang);
+  }
+  if (clean === '/products') return ok(renderProducts(q.productsPublished.all().map(rowToProduct), SITE, lang));
+  if ((m = clean.match(/^\/products\/(\d+)$/))) {
+    const row = q.productById.get(Number(m[1]));
+    return row && row.published ? ok(renderProduct(rowToProduct(row), SITE, lang)) : notFoundPage(lang);
+  }
+  if (clean === '/faq') return ok(renderFaq(q.qaPublished.all('faq').map(rowToQa), SITE, lang));
+  if (clean === '/guide') return ok(renderGuide(q.qaPublished.all('guide').map(rowToQa), SITE, lang));
+  return lang === 'ko' ? null : notFoundPage(lang);
+}
+
 async function handle(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const p = url.pathname;
@@ -526,47 +677,11 @@ async function handle(req, res) {
     return send(res, 200, fs.readFileSync(full), { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=31536000, immutable' });
   }
 
-  // reviews (both languages)
-  const rm = p.match(/^(\/en)?\/reviews(?:\/(\d+))?\/?$/);
-  if (method === 'GET' && rm) {
-    const lang = rm[1] ? 'en' : 'ko';
-    if (!rm[2]) {
-      const list = q.reviewsPublished.all().map(rowToReview);
-      return send(res, 200, renderReviews(list, SITE, lang, { products: q.productsPublished.all().length }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-    }
-    const row = q.reviewById.get(Number(rm[2]));
-    if (row && row.published) {
-      return send(res, 200, renderReview(rowToReview(row), SITE, lang), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-    }
-    return send(res, 404, '<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Not found</title><p style="font-family:sans-serif;padding:40px">Not found. <a href="/">Home</a></p>', { 'Content-Type': 'text/html; charset=utf-8' });
-  }
-
-  // products (both languages)
-  const pm = p.match(/^(\/en)?\/products(?:\/(\d+))?\/?$/);
-  if (method === 'GET' && pm) {
-    const lang = pm[1] ? 'en' : 'ko';
-    if (!pm[2]) {
-      const list = q.productsPublished.all().map(rowToProduct);
-      return send(res, 200, renderProducts(list, SITE, lang, { reviews: q.reviewsPublished.all().length }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-    }
-    const row = q.productById.get(Number(pm[2]));
-    if (row && row.published) {
-      return send(res, 200, renderProduct(rowToProduct(row), SITE, lang), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-    }
-    return send(res, 404, '<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Not found</title><p style="font-family:sans-serif;padding:40px">Not found. <a href="/">Home</a></p>', { 'Content-Type': 'text/html; charset=utf-8' });
-  }
-
-  if (method === 'GET' && (p === '/en' || p === '/en/')) {
-    return send(res, 200, renderPublic(getAreas(), SITE, getContentMap(), 'en', homeExtra()), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-  }
-  if (method === 'GET' && p.startsWith('/en/area/')) {
-    const slugEn = decodeURIComponent(p.slice(9)).replace(/\/+$/, '');
-    const htmlEn = renderArea(slugEn, getAreas(), SITE, getContentMap(), 'en');
-    if (htmlEn) return send(res, 200, htmlEn, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-    return send(res, 404, '<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Page not found</title><p style="font-family:sans-serif;padding:40px">Page not found. <a href="/en">Back to home</a></p>', { 'Content-Type': 'text/html; charset=utf-8' });
-  }
-  if (method === 'GET' && (p === '/' || p === '/index.html')) {
-    return send(res, 200, renderPublic(getAreas(), SITE, getContentMap(), 'ko', homeExtra()), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+  // public pages: Korean at the root, the other languages under /en /zh /ja
+  const lm = p.match(/^\/(en|zh|ja)(\/.*)?$/);
+  if (method === 'GET' && (lm || PUBLIC_KO_RE.test(p))) {
+    const page = publicPage(lm ? lm[1] : 'ko', lm ? lm[2] || '/' : p);
+    if (page) return send(res, page.status, page.html, page.status === 200 ? HTML_HEADERS : { 'Content-Type': 'text/html; charset=utf-8' });
   }
   if (method === 'GET' && (p === '/admin' || p === '/admin/')) {
     return send(res, 200, adminHtml, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' });
@@ -589,13 +704,6 @@ async function handle(req, res) {
   if (method === 'GET' && p === '/sitemap.xml') {
     return send(res, 200, renderSitemap(getAreas(), SITE, q.reviewsPublished.all().map((r) => r.id), q.productsPublished.all().map((r) => r.id)), { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'no-cache' });
   }
-  if (method === 'GET' && p.startsWith('/area/')) {
-    const slug = decodeURIComponent(p.slice(6)).replace(/\/+$/, '');
-    const html = renderArea(slug, getAreas(), SITE, getContentMap());
-    if (html) return send(res, 200, html, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-    return send(res, 404, '<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>페이지를 찾을 수 없어요</title><p style="font-family:sans-serif;padding:40px">페이지를 찾을 수 없어요. <a href="/">홈으로 가기</a></p>', { 'Content-Type': 'text/html; charset=utf-8' });
-  }
-
   // public: submit an inquiry
   if (method === 'POST' && p === '/api/inquiries') {
     const ip = clientIp(req);
@@ -720,9 +828,11 @@ async function handle(req, res) {
       }
       if (CONTENT_FIELDS.every((f) => !next[f])) {
         q.contentDelete.run(g.name);
+        i18n.remove('area', g.name);
         return sendJson(res, 200, { custom: null, english: null, translation: { status: 'none' } });
       }
       q.contentUpsert.run(next);
+      if (await i18n.sync('area', g.name, { intro: ko.intro, headline: ko.headline, body: ko.body, description: ko.description })) failed = true;
       return sendJson(res, 200, {
         custom: { intro: next.intro, headline: next.headline, body: next.body, description: next.description },
         english: { intro: next.intro_en, headline: next.headline_en, body: next.body_en, description: next.description_en },
@@ -754,7 +864,8 @@ async function handle(req, res) {
       const { out, failed } = await translateReview(null, input);
       const now = Date.now();
       const info = q.reviewInsert.run(Object.assign({}, input, out, { photos: JSON.stringify(input.photos), created_at: now, updated_at: now }));
-      return sendJson(res, 200, { item: rowToReview(q.reviewById.get(info.lastInsertRowid)), translation: { failed } });
+      const failedExtra = await i18n.sync('review', info.lastInsertRowid, { title: input.title, body: input.body });
+      return sendJson(res, 200, { item: rowToReview(q.reviewById.get(info.lastInsertRowid)), translation: { failed: failed || failedExtra } });
     }
     const rvm = p.match(/^\/api\/admin\/reviews\/(\d+)$/);
     if (rvm) {
@@ -768,10 +879,12 @@ async function handle(req, res) {
         const { out, failed } = await translateReview({ title: prev.title, body: prev.body, title_en: prev.titleEn, body_en: prev.bodyEn }, input);
         q.reviewUpdate.run(Object.assign({ id }, input, out, { photos: JSON.stringify(input.photos), updated_at: Date.now() }));
         prev.photos.filter((f) => !input.photos.includes(f)).forEach(removeUpload);
-        return sendJson(res, 200, { item: rowToReview(q.reviewById.get(id)), translation: { failed } });
+        const failedExtra = await i18n.sync('review', id, { title: input.title, body: input.body });
+        return sendJson(res, 200, { item: rowToReview(q.reviewById.get(id)), translation: { failed: failed || failedExtra } });
       }
       if (method === 'DELETE') {
         q.reviewDelete.run(id);
+        i18n.remove('review', id);
         prev.photos.forEach(removeUpload);
         return sendJson(res, 200, { ok: true });
       }
@@ -786,7 +899,8 @@ async function handle(req, res) {
       const { out, failed } = await translateProduct(null, input);
       const now = Date.now();
       const info = q.productInsert.run(Object.assign({}, input, out, { photos: JSON.stringify(input.photos), created_at: now, updated_at: now }));
-      return sendJson(res, 200, { item: rowToProduct(q.productById.get(info.lastInsertRowid)), translation: { failed } });
+      const failedExtra = await i18n.sync('product', info.lastInsertRowid, { name: input.name, price: input.price, description: input.description }, productPre);
+      return sendJson(res, 200, { item: rowToProduct(q.productById.get(info.lastInsertRowid)), translation: { failed: failed || failedExtra } });
     }
     const pdm = p.match(/^\/api\/admin\/products\/(\d+)$/);
     if (pdm) {
@@ -800,10 +914,12 @@ async function handle(req, res) {
         const { out, failed } = await translateProduct({ name: prev.name, price: prev.price, description: prev.description, name_en: prev.nameEn, price_en: prev.priceEn, description_en: prev.descriptionEn }, input);
         q.productUpdate.run(Object.assign({ id }, input, out, { photos: JSON.stringify(input.photos), updated_at: Date.now() }));
         prev.photos.filter((f) => !input.photos.includes(f)).forEach(removeUpload);
-        return sendJson(res, 200, { item: rowToProduct(q.productById.get(id)), translation: { failed } });
+        const failedExtra = await i18n.sync('product', id, { name: input.name, price: input.price, description: input.description }, productPre);
+        return sendJson(res, 200, { item: rowToProduct(q.productById.get(id)), translation: { failed: failed || failedExtra } });
       }
       if (method === 'DELETE') {
         q.productDelete.run(id);
+        i18n.remove('product', id);
         prev.photos.forEach(removeUpload);
         return sendJson(res, 200, { ok: true });
       }
@@ -819,6 +935,54 @@ async function handle(req, res) {
       q.putSetting.run('site_config', JSON.stringify(config));
       applySiteConfig(config);
       return sendJson(res, 200, { config, translation: { failed } });
+    }
+
+    if (method === 'GET' && p === '/api/admin/qa') {
+      const kind = url.searchParams.get('kind');
+      if (!QA_KINDS.includes(kind)) return sendJson(res, 400, { error: '종류가 올바르지 않아요.' });
+      return sendJson(res, 200, { items: q.qaByKind.all(kind).map(rowToQa) });
+    }
+    if (method === 'POST' && p === '/api/admin/qa') {
+      const body = await readJson(req);
+      if (!QA_KINDS.includes(body.kind)) return sendJson(res, 400, { error: '종류가 올바르지 않아요.' });
+      const input = qaInput(body);
+      if (input.error) return sendJson(res, 400, { error: input.error });
+      const { out, failed } = await translateQa(null, null, input);
+      const now = Date.now();
+      const info = q.qaInsert.run(Object.assign({ kind: body.kind, sort_order: q.qaMax.get(body.kind).m + 1, created_at: now, updated_at: now }, input, out));
+      const failedExtra = await i18n.sync('qa', info.lastInsertRowid, { question: input.question, answer: input.answer });
+      return sendJson(res, 200, { item: rowToQa(q.qaById.get(info.lastInsertRowid)), translation: { failed: failed || failedExtra } });
+    }
+    const qam = p.match(/^\/api\/admin\/qa\/(\d+)(\/move)?$/);
+    if (qam) {
+      const id = Number(qam[1]);
+      const prevRow = q.qaById.get(id);
+      if (!prevRow) return sendJson(res, 404, { error: '없는 항목이에요.' });
+      if (qam[2] && method === 'POST') {
+        const body = await readJson(req);
+        const list = q.qaByKind.all(prevRow.kind);
+        const i = list.findIndex((r) => r.id === id);
+        const j = body.dir === 'up' ? i - 1 : i + 1;
+        if (j >= 0 && j < list.length) {
+          const order = list.map((r) => r.id);
+          [order[i], order[j]] = [order[j], order[i]];
+          order.forEach((rid, idx) => q.qaSetOrder.run(idx + 1, rid));
+        }
+        return sendJson(res, 200, { items: q.qaByKind.all(prevRow.kind).map(rowToQa) });
+      }
+      if (method === 'PUT') {
+        const input = qaInput(await readJson(req));
+        if (input.error) return sendJson(res, 400, { error: input.error });
+        const { out, failed } = await translateQa(id, { question: prevRow.question, answer: prevRow.answer, question_en: prevRow.question_en, answer_en: prevRow.answer_en }, input);
+        q.qaUpdate.run(Object.assign({ id, updated_at: Date.now() }, input, out));
+        const failedExtra = await i18n.sync('qa', id, { question: input.question, answer: input.answer });
+        return sendJson(res, 200, { item: rowToQa(q.qaById.get(id)), translation: { failed: failed || failedExtra } });
+      }
+      if (method === 'DELETE') {
+        q.qaDelete.run(id);
+        i18n.remove('qa', id);
+        return sendJson(res, 200, { ok: true });
+      }
     }
 
     if (method === 'GET' && p === '/api/admin/areas') return sendJson(res, 200, { active: getAreas() });
