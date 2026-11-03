@@ -11,6 +11,7 @@ const AREAS = require('./lib/areas');
 const { translateKo, translateKoToEn, primaryProvider } = require('./lib/translate');
 const { createStore } = require('./lib/i18n-store');
 const SEED_QA = require('./lib/seed-qa');
+const { notifyInquiry } = require('./lib/sms');
 
 const PROD = process.env.NODE_ENV === 'production';
 const PORT = Number(process.env.PORT) || 3000;
@@ -717,6 +718,7 @@ async function handle(req, res) {
     const message = str(body.message, 2000);
     if (contact.replace(/\D/g, '').length < 8) return sendJson(res, 400, { error: '연락처를 확인해 주세요.' });
     q.insert.run(region, contact, message, 'web', Date.now());
+    notifyInquiry({ region, contact, message });
     return sendJson(res, 200, { ok: true });
   }
 
