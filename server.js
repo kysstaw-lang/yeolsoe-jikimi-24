@@ -43,6 +43,7 @@ const SITE = {
   },
   siteUrl: (process.env.SITE_URL || 'https://www.xn--2i4b2n54hnwa.com').replace(/\/+$/, ''),
   naverVerify: process.env.NAVER_SITE_VERIFICATION || 'fd368e75fcd75202ba1a187734be9ca69ba9f300',
+  metaPixelId: (process.env.META_PIXEL_ID || '1793694572116820').replace(/\D/g, ''),
 };
 
 const SITE_DEFAULTS = JSON.parse(JSON.stringify(SITE));
@@ -543,8 +544,8 @@ const SECURITY_HEADERS = {
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'same-origin',
   'Content-Security-Policy':
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-    "font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    "default-src 'self'; script-src 'self' 'unsafe-inline'" + (SITE.metaPixelId ? ' https://connect.facebook.net' : '') + "; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "font-src https://fonts.gstatic.com; img-src 'self' data: blob:" + (SITE.metaPixelId ? ' https://www.facebook.com' : '') + "; connect-src 'self'" + (SITE.metaPixelId ? ' https://www.facebook.com https://connect.facebook.net' : '') + "; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
 };
 
 function send(res, status, body, headers) {
