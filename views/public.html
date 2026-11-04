@@ -580,7 +580,7 @@
         </div>
         <div class="field">
           <label for="f-contact">{{labelPhone}}</label>
-          <input id="f-contact" name="contact" type="tel" required placeholder="010-1234-5678">
+          <input id="f-contact" name="contact" type="tel" inputmode="tel" autocomplete="tel" maxlength="14" required placeholder="010-1234-5678">
         </div>
         <div class="field">
           <label for="f-message">{{labelMessage}}</label>
@@ -640,6 +640,32 @@
       msg.textContent = text;
       msg.className = 'confirm-msg show' + (isError ? ' error' : '');
     }
+
+    // Korean phone numbers get their hyphens automatically (010-1234-5678, 02-123-4567, 031-123-4567); numbers starting with + are left as typed.
+    function formatPhone(raw) {
+      var d = raw.replace(/\D/g, '').slice(0, 11);
+      if (d.slice(0, 2) === '02') {
+        d = d.slice(0, 10);
+        var r = d.slice(2), mid = r.length > 7 ? 4 : 3;
+        return r.length <= 3 ? d.slice(0, 2) + (r ? '-' + r : '') : d.slice(0, 2) + '-' + r.slice(0, mid) + '-' + r.slice(mid);
+      }
+      if (d.length <= 3) return d;
+      var m = d.slice(0, 3) === '010' || d.length === 11 ? 4 : 3;
+      var rest = d.slice(3);
+      return rest.length <= m ? d.slice(0, 3) + '-' + rest : d.slice(0, 3) + '-' + rest.slice(0, m) + '-' + rest.slice(m);
+    }
+    var contact = document.getElementById('f-contact');
+    contact.addEventListener('input', function () {
+      var v = contact.value;
+      if (v.charAt(0) === '+') return;
+      var pos = contact.selectionStart, digitsBefore = v.slice(0, pos).replace(/\D/g, '').length;
+      var out = formatPhone(v);
+      if (out === v) return;
+      contact.value = out;
+      var n = 0, i = 0;
+      while (i < out.length && n < digitsBefore) { if (/\d/.test(out.charAt(i))) n++; i++; }
+      contact.setSelectionRange(i, i);
+    });
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
