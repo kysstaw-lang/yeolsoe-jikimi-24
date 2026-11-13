@@ -1000,7 +1000,8 @@ function renderSite() {
       stField('st-hours', '영업시간 문구', c.hours, d.hours, '', 60) + '</div></div>' +
     '<div class="st-sec"><h3>사업자 정보</h3><div class="st-sub">푸터와 연락처 영역에 나와요.</div>' +
       '<div class="field-row">' + stField('st-biz', '상표명', c.bizName, d.bizName, '', 80) +
-      stField('st-owner', '대표자', c.owner, d.owner, '', 40) + '</div></div>' +
+      stField('st-owner', '대표자', c.owner, d.owner, '', 40) + '</div>' +
+      stField('st-bizno', '사업자등록번호', c.bizNo, d.bizNo, '숫자와 - 만 (예: 123-45-67890)', 20) + '</div>' +
     '<div class="st-sec"><h3>채널 링크</h3><div class="st-sub">https:// 로 시작하는 주소만 저장돼요.</div>' +
       stField('st-naver', '네이버 플레이스', c.links.naver, d.links.naver, '', 300) +
       stField('st-daangn', '당근', c.links.daangn, d.links.daangn, '', 300) +
@@ -1015,7 +1016,7 @@ function renderSite() {
 
 function readSiteForm() {
   return {
-    phone: $('st-phone').value, hours: $('st-hours').value, bizName: $('st-biz').value, owner: $('st-owner').value,
+    phone: $('st-phone').value, hours: $('st-hours').value, bizName: $('st-biz').value, owner: $('st-owner').value, bizNo: $('st-bizno').value,
     links: { naver: $('st-naver').value, daangn: $('st-daangn').value, google: $('st-google').value },
     hero: { l1: $('st-l1').value, l2: $('st-l2').value, sub: $('st-sub').value },
     show: { products: $('st-show-products').checked, reviews: $('st-show-reviews').checked, dock: $('st-show-dock').checked },

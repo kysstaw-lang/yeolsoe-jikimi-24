@@ -27,6 +27,7 @@ const SITE = {
   hours: process.env.SITE_HOURS || '연중무휴 24시간 상담',
   bizName: process.env.SITE_BIZ_NAME || '열쇠 지킴이, 열쇠지킴이24시',
   owner: process.env.SITE_OWNER || '이문술',
+  bizNo: process.env.SITE_BIZ_NO || '120-09-12308',
   hoursEn: process.env.SITE_HOURS_EN || 'Open every day · 24-hour consultation',
   hoursByLang: {
     ko: process.env.SITE_HOURS || '연중무휴 24시간 상담',
@@ -228,7 +229,7 @@ const PHONE_RE = /^[0-9+\-\s()]{5,20}$/;
 const URL_RE = /^https?:\/\/[^\s<>"']{3,300}$/i;
 const emptyTr = () => ({ hours: '', l1: '', l2: '', sub: '' });
 const emptySiteConfig = () => ({
-  phone: '', hours: '', bizName: '', owner: '',
+  phone: '', hours: '', bizName: '', owner: '', bizNo: '',
   links: { naver: '', daangn: '', google: '' },
   hero: { l1: '', l2: '', sub: '' },
   tr: { en: emptyTr(), zh: emptyTr(), ja: emptyTr() },
@@ -269,6 +270,7 @@ function applySiteConfig(c) {
   SITE.hoursEn = SITE.hoursByLang.en;
   SITE.bizName = c.bizName || D.bizName;
   SITE.owner = c.owner || D.owner;
+  SITE.bizNo = c.bizNo || D.bizNo;
   SITE.links = {
     naver: (c.links && c.links.naver) || D.links.naver,
     daangn: (c.links && c.links.daangn) || D.links.daangn,
@@ -287,11 +289,13 @@ function siteConfigInput(body) {
   const link = (v) => { const t = str(v, 300); return URL_RE.test(t) ? t : ''; };
   const phone = str(b.phone, 20);
   if (phone && !PHONE_RE.test(phone)) return { error: '전화번호는 숫자와 - 만 입력해 주세요.' };
+  const bizNo = str(b.bizNo, 20);
+  if (bizNo && !/^[0-9-]{10,14}$/.test(bizNo)) return { error: '사업자등록번호는 숫자와 - 만 입력해 주세요. (예: 123-45-67890)' };
   const hero = b.hero || {};
   const show = b.show || {};
   return {
     config: Object.assign(emptySiteConfig(), {
-      phone, hours: str(b.hours, 60), bizName: str(b.bizName, 80), owner: str(b.owner, 40),
+      phone, hours: str(b.hours, 60), bizName: str(b.bizName, 80), owner: str(b.owner, 40), bizNo,
       links: { naver: link(links.naver), daangn: link(links.daangn), google: link(links.google) },
       hero: { l1: str(hero.l1, 40), l2: str(hero.l2, 40), sub: str(hero.sub, 160) },
       show: { products: show.products !== false, reviews: show.reviews !== false, dock: show.dock !== false },
@@ -317,7 +321,7 @@ async function translateSiteConfig(prev, next) {
 
 function siteDefaultsForAdmin() {
   return {
-    phone: SITE_DEFAULTS.phone, hours: SITE_DEFAULTS.hours, bizName: SITE_DEFAULTS.bizName, owner: SITE_DEFAULTS.owner,
+    phone: SITE_DEFAULTS.phone, hours: SITE_DEFAULTS.hours, bizName: SITE_DEFAULTS.bizName, owner: SITE_DEFAULTS.owner, bizNo: SITE_DEFAULTS.bizNo,
     links: SITE_DEFAULTS.links, hero: { l1: STR.ko.heroL1, l2: STR.ko.heroL2, sub: STR.ko.heroSub },
   };
 }
