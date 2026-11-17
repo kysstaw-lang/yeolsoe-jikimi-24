@@ -6,12 +6,13 @@ const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const { STR, LANGS, pageUrl } = require('./lib/i18n');
-const { NAMES, renderPublic, renderAdmin, renderArea, renderSitemap, renderReviews, renderReview, renderProducts, renderProduct, renderFaq, renderGuide } = require('./lib/render');
+const { NAMES, renderPublic, renderAdmin, renderArea, renderSitemap, renderReviews, renderReview, renderProducts, renderProduct, renderFaq, renderGuide, renderLocations, renderBlog } = require('./lib/render');
 const AREAS = require('./lib/areas');
 const { translateKo, translateKoToEn, primaryProvider } = require('./lib/translate');
 const { createStore } = require('./lib/i18n-store');
 const SEED_QA = require('./lib/seed-qa');
 const { notifyInquiry } = require('./lib/sms');
+const { parseBranches, DEFAULT_BRANCHES_TEXT } = require('./lib/branches');
 const { buildLlms } = require('./lib/llms');
 
 const PROD = process.env.NODE_ENV === 'production';
@@ -142,6 +143,33 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_qa_kind ON qa_items(kind, sort_order, id);
 `);
+db.exec(`
+  CREATE TABLE IF NOT EXISTS blog_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    thumbnail TEXT NOT NULL DEFAULT '',
+    published INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+`);
+db.exec(`
+  CREATE TABLE IF NOT EXISTS branches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    region TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
+    address TEXT NOT NULL DEFAULT '',
+    biz_no TEXT NOT NULL DEFAULT '',
+    map_url TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    published INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_branches_sort ON branches(sort_order, id);
+`);
 const i18n = createStore(db);
 
 /** Starter FAQ / "before we visit" content, inserted once so the pages are not empty on day one. */
@@ -161,6 +189,27 @@ const i18n = createStore(db);
     }
   }
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('qa_seeded', '1')").run();
+})();
+
+/** Starter branch/office list, carried over from the old free-text "지사 안내" field so nothing is lost. */
+(function seedBranches() {
+  if (db.prepare("SELECT value FROM settings WHERE key = 'branches_seeded'").get()) return;
+  if (db.prepare('SELECT COUNT(*) AS n FROM branches').get().n === 0) {
+    const ins = db.prepare(`INSERT INTO branches (region, name, address, biz_no, map_url, description, sort_order, published, created_at, updated_at)
+      VALUES (@region, @name, @address, @biz_no, @map_url, @description, @sort_order, 1, @now, @now)`);
+    const now = Date.now();
+    let order = 0;
+    for (const r of parseBranches(DEFAULT_BRANCHES_TEXT)) {
+      if (r.branches.length) {
+        for (const b of r.branches) {
+          ins.run({ region: r.title, name: b.name, address: '', biz_no: b.bizNo, map_url: b.map || '', description: b.desc, sort_order: ++order, now });
+        }
+      } else {
+        ins.run({ region: r.title, name: '', address: '', biz_no: '', map_url: '', description: r.note, sort_order: ++order, now });
+      }
+    }
+  }
+  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('branches_seeded', '1')").run();
 })();
 
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
@@ -197,6 +246,23 @@ const q = {
   productUpdate: db.prepare(`UPDATE products SET name = @name, category = @category, price = @price, description = @description, name_en = @name_en,
     price_en = @price_en, description_en = @description_en, photos = @photos, published = @published, updated_at = @updated_at WHERE id = @id`),
   productDelete: db.prepare('DELETE FROM products WHERE id = ?'),
+  blogAll: db.prepare('SELECT * FROM blog_links ORDER BY id DESC'),
+  blogPublished: db.prepare('SELECT * FROM blog_links WHERE published = 1 ORDER BY id DESC LIMIT 100'),
+  blogById: db.prepare('SELECT * FROM blog_links WHERE id = ?'),
+  blogInsert: db.prepare(`INSERT INTO blog_links (title, url, thumbnail, published, created_at, updated_at)
+    VALUES (@title, @url, @thumbnail, @published, @created_at, @updated_at)`),
+  blogUpdate: db.prepare(`UPDATE blog_links SET title = @title, url = @url, thumbnail = @thumbnail, published = @published, updated_at = @updated_at WHERE id = @id`),
+  blogDelete: db.prepare('DELETE FROM blog_links WHERE id = ?'),
+  branchesAll: db.prepare('SELECT * FROM branches ORDER BY sort_order, id'),
+  branchesPublished: db.prepare('SELECT * FROM branches WHERE published = 1 ORDER BY sort_order, id'),
+  branchById: db.prepare('SELECT * FROM branches WHERE id = ?'),
+  branchMaxOrder: db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM branches'),
+  branchInsert: db.prepare(`INSERT INTO branches (region, name, address, biz_no, map_url, description, sort_order, published, created_at, updated_at)
+    VALUES (@region, @name, @address, @biz_no, @map_url, @description, @sort_order, @published, @created_at, @updated_at)`),
+  branchUpdate: db.prepare(`UPDATE branches SET region = @region, name = @name, address = @address, biz_no = @biz_no, map_url = @map_url,
+    description = @description, published = @published, updated_at = @updated_at WHERE id = @id`),
+  branchSetOrder: db.prepare('UPDATE branches SET sort_order = ? WHERE id = ?'),
+  branchDelete: db.prepare('DELETE FROM branches WHERE id = ?'),
   qaByKind: db.prepare('SELECT * FROM qa_items WHERE kind = ? ORDER BY sort_order, id'),
   qaPublished: db.prepare('SELECT * FROM qa_items WHERE kind = ? AND published = 1 ORDER BY sort_order, id'),
   qaById: db.prepare('SELECT * FROM qa_items WHERE id = ?'),
@@ -215,6 +281,10 @@ const q = {
   contentDelete: db.prepare('DELETE FROM area_content WHERE name = ?'),
   putSetting: db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'),
 };
+
+// Branches live in their own table (admin-managed); this makes SITE.branchRegions always read the current data,
+// the same way footerHtml/renderLocations already expect it, with no caching to go stale.
+Object.defineProperty(SITE, 'branchRegions', { get: () => getBranchRegions(), enumerable: true });
 
 /** Published products and reviews for the home page (one row of the newest items; counts are totals). */
 function homeExtra() {
@@ -297,7 +367,7 @@ function siteConfigInput(body) {
     config: Object.assign(emptySiteConfig(), {
       phone, hours: str(b.hours, 60), bizName: str(b.bizName, 80), owner: str(b.owner, 40), bizNo,
       links: { naver: link(links.naver), daangn: link(links.daangn), google: link(links.google) },
-      hero: { l1: str(hero.l1, 40), l2: str(hero.l2, 40), sub: str(hero.sub, 160) },
+      hero: { l1: str(hero.l1, 60), l2: str(hero.l2, 60), sub: str(hero.sub, 160) },
       show: { products: show.products !== false, reviews: show.reviews !== false, dock: show.dock !== false },
     }),
   };
@@ -375,6 +445,61 @@ function productInput(body, prevPhotos) {
   };
 }
 
+function rowToBlog(row) {
+  return {
+    id: row.id, title: row.title, url: row.url,
+    thumbnail: row.thumbnail && PHOTO_RE.test(row.thumbnail) ? row.thumbnail : '',
+    published: !!row.published,
+  };
+}
+
+function blogInput(body, prevThumbnail) {
+  const title = str(body.title, 120);
+  if (!title) return { error: '글 제목을 입력해 주세요.' };
+  const url = str(body.url, 500);
+  if (!URL_RE.test(url)) return { error: '링크 주소(https://로 시작)를 입력해 주세요.' };
+  const thumbnail = typeof body.thumbnail === 'string' && PHOTO_RE.test(body.thumbnail) && fs.existsSync(path.join(UPLOAD_DIR, body.thumbnail))
+    ? body.thumbnail
+    : (prevThumbnail || '');
+  return { title, url, thumbnail, published: body.published === false ? 0 : 1 };
+}
+
+function rowToBranch(row) {
+  return {
+    id: row.id, region: row.region, name: row.name, address: row.address,
+    bizNo: row.biz_no, map: row.map_url, description: row.description,
+    published: !!row.published, sortOrder: row.sort_order,
+  };
+}
+
+function branchInput(body) {
+  const region = str(body.region, 40);
+  if (!region) return { error: '지사 이름을 입력해 주세요. (예: 서울 지사)' };
+  const name = str(body.name, 60);
+  const description = str(body.description, 300);
+  if (!name && !description) return { error: '지점 이름 또는 안내 문구 중 하나는 입력해 주세요.' };
+  const bizNo = str(body.bizNo, 20);
+  if (bizNo && !/^[0-9-]{10,14}$/.test(bizNo)) return { error: '사업자등록번호는 숫자와 - 만 입력해 주세요. (예: 123-45-67890)' };
+  const map = str(body.map, 500);
+  if (map && !URL_RE.test(map)) return { error: '네이버 지도 링크는 https:// 로 시작하는 주소여야 해요.' };
+  return {
+    region, name, address: str(body.address, 200), biz_no: bizNo, map_url: map, description,
+    published: body.published === false ? 0 : 1,
+  };
+}
+
+/** Published branches grouped by region, in display order; a region with no named branches shows its first row's text as a note. */
+function getBranchRegions() {
+  const regions = [];
+  for (const row of q.branchesPublished.all()) {
+    let r = regions.find((x) => x.title === row.region);
+    if (!r) { r = { title: row.region, note: '', branches: [] }; regions.push(r); }
+    if (!row.name) { if (row.description) r.note = row.description; continue; }
+    r.branches.push({ name: row.name, desc: row.description, bizNo: row.biz_no, map: row.map_url, address: row.address });
+  }
+  return regions;
+}
+
 /** Plain prices need no machine translation: 148,000원 -> 148,000 韩元 / 148,000 ウォン. */
 function productPre(field, text, lang) {
   if (field !== 'price' || !/^[\d,.\s]+원?$/.test(text)) return null;
@@ -428,6 +553,7 @@ function cleanOrphanUploads() {
   const used = new Set();
   for (const row of q.reviewsAll.all()) rowToReview(row).photos.forEach((f) => used.add(f));
   for (const row of q.productsAll.all()) rowToProduct(row).photos.forEach((f) => used.add(f));
+  for (const row of q.blogAll.all()) { const t = rowToBlog(row).thumbnail; if (t) used.add(t); }
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   for (const f of fs.readdirSync(UPLOAD_DIR)) {
     if (!PHOTO_RE.test(f) || used.has(f)) continue;
@@ -645,7 +771,7 @@ function cookieHeader(req, value, maxAgeSec) {
 /* ---------- routes ---------- */
 
 const HTML_HEADERS = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' };
-const PUBLIC_KO_RE = /^(\/|\/index\.html|\/(area|reviews|products)\/[^/]+\/?|\/(reviews|products|faq|guide)\/?)$/;
+const PUBLIC_KO_RE = /^(\/|\/index\.html|\/(area|reviews|products)\/[^/]+\/?|\/(reviews|products|faq|guide|locations|blog)\/?)$/;
 
 function notFoundPage(lang) {
   const msg = lang === 'ko' ? '페이지를 찾을 수 없어요.' : 'Page not found.';
@@ -675,6 +801,8 @@ function publicPage(lang, rest) {
   }
   if (clean === '/faq') return ok(renderFaq(q.qaPublished.all('faq').map(rowToQa), SITE, lang));
   if (clean === '/guide') return ok(renderGuide(q.qaPublished.all('guide').map(rowToQa), SITE, lang));
+  if (clean === '/locations') return ok(renderLocations(SITE.branchRegions, SITE, lang));
+  if (clean === '/blog') return ok(renderBlog(q.blogPublished.all().map(rowToBlog), SITE, lang));
   return lang === 'ko' ? null : notFoundPage(lang);
 }
 
@@ -728,6 +856,7 @@ async function handle(req, res) {
       guide: q.qaPublished.all('guide'),
       products: q.productsPublished.all(),
       reviews: q.reviewsPublished.all(),
+      blog: q.blogPublished.all().map(rowToBlog),
     };
     return send(res, 200, buildLlms(llmsTxt, SITE, data, p === '/llms-full.txt'), { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
   }
@@ -955,6 +1084,75 @@ async function handle(req, res) {
         q.productDelete.run(id);
         i18n.remove('product', id);
         prev.photos.forEach(removeUpload);
+        return sendJson(res, 200, { ok: true });
+      }
+    }
+
+    if (method === 'GET' && p === '/api/admin/blog') {
+      return sendJson(res, 200, { items: q.blogAll.all().map(rowToBlog) });
+    }
+    if (method === 'POST' && p === '/api/admin/blog') {
+      const input = blogInput(await readJson(req));
+      if (input.error) return sendJson(res, 400, { error: input.error });
+      const now = Date.now();
+      const info = q.blogInsert.run(Object.assign({}, input, { created_at: now, updated_at: now }));
+      return sendJson(res, 200, { item: rowToBlog(q.blogById.get(info.lastInsertRowid)) });
+    }
+    const blm = p.match(/^\/api\/admin\/blog\/(\d+)$/);
+    if (blm) {
+      const id = Number(blm[1]);
+      const prevRow = q.blogById.get(id);
+      if (!prevRow) return sendJson(res, 404, { error: '없는 글이에요.' });
+      const prev = rowToBlog(prevRow);
+      if (method === 'PUT') {
+        const input = blogInput(await readJson(req), prev.thumbnail);
+        if (input.error) return sendJson(res, 400, { error: input.error });
+        q.blogUpdate.run(Object.assign({ id }, input, { updated_at: Date.now() }));
+        if (prev.thumbnail && prev.thumbnail !== input.thumbnail) removeUpload(prev.thumbnail);
+        return sendJson(res, 200, { item: rowToBlog(q.blogById.get(id)) });
+      }
+      if (method === 'DELETE') {
+        q.blogDelete.run(id);
+        if (prev.thumbnail) removeUpload(prev.thumbnail);
+        return sendJson(res, 200, { ok: true });
+      }
+    }
+
+    if (method === 'GET' && p === '/api/admin/branches') {
+      return sendJson(res, 200, { items: q.branchesAll.all().map(rowToBranch) });
+    }
+    if (method === 'POST' && p === '/api/admin/branches') {
+      const input = branchInput(await readJson(req));
+      if (input.error) return sendJson(res, 400, { error: input.error });
+      const now = Date.now();
+      const info = q.branchInsert.run(Object.assign({}, input, { sort_order: q.branchMaxOrder.get().m + 1, created_at: now, updated_at: now }));
+      return sendJson(res, 200, { item: rowToBranch(q.branchById.get(info.lastInsertRowid)) });
+    }
+    const brm = p.match(/^\/api\/admin\/branches\/(\d+)(\/move)?$/);
+    if (brm) {
+      const id = Number(brm[1]);
+      const prevRow = q.branchById.get(id);
+      if (!prevRow) return sendJson(res, 404, { error: '없는 지점이에요.' });
+      if (brm[2] && method === 'POST') {
+        const body = await readJson(req);
+        const list = q.branchesAll.all();
+        const i = list.findIndex((r) => r.id === id);
+        const j = body.dir === 'up' ? i - 1 : i + 1;
+        if (j >= 0 && j < list.length) {
+          const order = list.map((r) => r.id);
+          [order[i], order[j]] = [order[j], order[i]];
+          order.forEach((rid, idx) => q.branchSetOrder.run(idx + 1, rid));
+        }
+        return sendJson(res, 200, { items: q.branchesAll.all().map(rowToBranch) });
+      }
+      if (method === 'PUT') {
+        const input = branchInput(await readJson(req));
+        if (input.error) return sendJson(res, 400, { error: input.error });
+        q.branchUpdate.run(Object.assign({ id }, input, { updated_at: Date.now() }));
+        return sendJson(res, 200, { item: rowToBranch(q.branchById.get(id)) });
+      }
+      if (method === 'DELETE') {
+        q.branchDelete.run(id);
         return sendJson(res, 200, { ok: true });
       }
     }

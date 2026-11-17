@@ -23,6 +23,15 @@ var pdSel = null;
 var pdDrafts = {};
 var pdLoaded = false;
 var pdUploading = 0;
+var blog = [];
+var blSel = null;
+var blDrafts = {};
+var blLoaded = false;
+var blUploading = 0;
+var branches = [];
+var brSel = null;
+var brDrafts = {};
+var brLoaded = false;
 var siteLoaded = false;
 var siteData = null;
 var QA = { faq: { items: [], sel: null, drafts: {}, loaded: false }, guide: { items: [], sel: null, drafts: {}, loaded: false } };
@@ -122,6 +131,14 @@ $('logoutBtn').addEventListener('click', function () {
     pdLoaded = false;
     pdDrafts = {};
     pdSel = null;
+    blog = [];
+    blLoaded = false;
+    blDrafts = {};
+    blSel = null;
+    branches = [];
+    brLoaded = false;
+    brDrafts = {};
+    brSel = null;
     siteLoaded = false;
     siteData = null;
     QA = { faq: { items: [], sel: null, drafts: {}, loaded: false }, guide: { items: [], sel: null, drafts: {}, loaded: false } };
@@ -166,11 +183,15 @@ function setView(v) {
   $('contentView').hidden = v !== 'content';
   $('reviewsView').hidden = v !== 'reviews';
   $('productsView').hidden = v !== 'products';
+  $('blogView').hidden = v !== 'blog';
+  $('branchesView').hidden = v !== 'branches';
   $('siteView').hidden = v !== 'site';
   $('qaView').hidden = v !== 'faq' && v !== 'guide';
   if (v === 'faq' || v === 'guide') { qaKind = v; renderQaHead(); if (!QA[v].loaded) loadQa(v).catch(function () {}); else { renderQaList(); renderQaEditor(); } }
   if (v === 'site' && !siteLoaded) loadSite().catch(function () {});
   if (v === 'products' && !pdLoaded) loadProducts().catch(function () {});
+  if (v === 'blog' && !blLoaded) loadBlog().catch(function () {});
+  if (v === 'branches' && !brLoaded) loadBranches().catch(function () {});
   if (v === 'reviews' && !rvLoaded) loadReviews().catch(function () {});
   if (v === 'content' && !contentLoaded) loadContent().catch(function () {});
   document.querySelectorAll('#menu button').forEach(function (b) {
@@ -968,6 +989,309 @@ function saveProduct() {
   });
 }
 
+/* ---------- blog links ---------- */
+
+function loadBlog() {
+  return api('GET', '/api/admin/blog').then(function (j) {
+    blog = j.items || [];
+    blLoaded = true;
+    if (blSel === null && blog.length) blSel = blog[0].id;
+    renderBlList();
+    renderBlEditor();
+  });
+}
+
+function blBlank() { return { title: '', url: '', thumbnail: '', published: true }; }
+
+function blDraftFor(id) {
+  if (blDrafts[id]) return blDrafts[id];
+  if (id === 'new') return blBlank();
+  var item = blog.find(function (r) { return r.id === id; });
+  if (!item) return blBlank();
+  return { title: item.title, url: item.url, thumbnail: item.thumbnail, published: item.published };
+}
+
+function renderBlList() {
+  $('menu-blog').textContent = blog.length;
+  var rows = [];
+  if (blSel === 'new') rows.push('<button type="button" class="rv-item selected" data-id="new"><span class="th"></span><span class="tx"><div class="t">새 글</div><div class="d">작성 중</div></span></button>');
+  blog.forEach(function (r) {
+    rows.push('<button type="button" class="rv-item' + (r.id === blSel ? ' selected' : '') + '" data-id="' + r.id + '">' +
+      '<span class="th">' + (r.thumbnail ? '<img src="/uploads/' + esc(r.thumbnail) + '" alt="">' : '') + '</span>' +
+      '<span class="tx"><div class="t">' + esc(r.title) + '</div><div class="d">' + esc(r.url) + (r.published ? '' : ' · <span class="off">비공개</span>') + '</div></span></button>');
+  });
+  $('blList').innerHTML = rows.length ? rows.join('') : '<div class="rv-empty-list">아직 등록한 글이 없어요. “새 글 추가”를 눌러 시작하세요.</div>';
+}
+
+function renderBlThumb() {
+  var d = blDraftFor(blSel);
+  var html = d.thumbnail
+    ? '<div class="rv-ph" data-f="' + esc(d.thumbnail) + '"><img src="/uploads/' + esc(d.thumbnail) + '" alt="">' +
+      '<div class="ctl"><button type="button" data-act="del" aria-label="삭제">✕</button></div></div>'
+    : '<label class="rv-add">+ 썸네일<br>추가<input type="file" id="bl-file" accept="image/*" hidden></label>';
+  $('bl-thumb').innerHTML = html;
+}
+
+function renderBlEditor() {
+  if (blSel === null) {
+    $('blEditor').innerHTML = '<div class="rv-empty-list">왼쪽에서 글을 고르거나 “새 글 추가”를 눌러 주세요.</div>';
+    return;
+  }
+  var d = blDraftFor(blSel);
+  var isNew = blSel === 'new';
+  $('blEditor').innerHTML =
+    '<div class="ce-head"><h3>' + (isNew ? '새 글 추가' : '글 수정') + '</h3>' +
+      (!isNew && d.published ? '<a href="/blog" target="_blank" rel="noopener">홈페이지에서 보기</a>' : '') + '</div>' +
+    '<div class="field"><label for="bl-title">제목</label><input id="bl-title" type="text" maxlength="120" value="' + esc(d.title) + '" placeholder="예) 성수점 도어락 교체 작업 후기"></div>' +
+    '<div class="field"><label for="bl-url">링크 주소<span class="ce-hint">https:// 로 시작하는 주소만 저장돼요</span></label><input id="bl-url" type="text" maxlength="500" value="' + esc(d.url) + '" placeholder="https://blog.naver.com/..."></div>' +
+    '<div class="field"><label>썸네일<span class="ce-hint">비워 둬도 돼요 · 올릴 때 자동으로 줄여서 저장돼요</span></label><div class="rv-photos" id="bl-thumb"></div><div class="ce-note" id="bl-upmsg" style="margin-top:8px"></div></div>' +
+    '<label class="rv-pub"><input type="checkbox" id="bl-pub"' + (d.published ? ' checked' : '') + '> 홈페이지에 공개</label>' +
+    '<div class="ce-actions">' + (isNew ? '' : '<button type="button" class="btn-ghost" id="bl-del">삭제</button>') +
+      '<span class="spacer"></span><span class="ce-saved" id="bl-saved"></span><button type="button" class="btn-primary" id="bl-save">저장</button></div>' +
+    '<div class="ce-note">클릭하면 새 창에서 이 링크가 열려요. 글 내용 자체는 수정할 수 없고, 원본 글은 다른 곳(네이버 블로그 등)에서 관리해 주세요.</div>';
+  renderBlThumb();
+}
+
+function readBlForm() {
+  var d = blDraftFor(blSel);
+  d.title = $('bl-title').value;
+  d.url = $('bl-url').value;
+  d.published = $('bl-pub').checked;
+  blDrafts[blSel] = d;
+  return d;
+}
+
+function selectBlog(id) {
+  if ($('bl-title')) readBlForm();
+  blSel = id;
+  renderBlList();
+  renderBlEditor();
+}
+
+$('blNew').addEventListener('click', function () { selectBlog('new'); $('bl-title').focus(); });
+$('blList').addEventListener('click', function (e) {
+  var b = e.target.closest('.rv-item');
+  if (!b) return;
+  var id = b.getAttribute('data-id');
+  selectBlog(id === 'new' ? 'new' : Number(id));
+});
+
+$('blEditor').addEventListener('input', function (e) { if (e.target.id && e.target.id.indexOf('bl-') === 0 && e.target.id !== 'bl-file') readBlForm(); });
+$('blEditor').addEventListener('change', function (e) {
+  if (e.target.id === 'bl-pub') { readBlForm(); return; }
+  if (e.target.id === 'bl-file') uploadBlogThumbnail(e.target.files[0]);
+});
+
+async function uploadBlogThumbnail(file) {
+  if (!file) return;
+  var id = blSel;
+  var d = blDraftFor(id);
+  var msg = $('bl-upmsg');
+  blUploading++;
+  if (msg && blSel === id) msg.textContent = '썸네일 올리는 중…';
+  try {
+    var blob = await shrink(file);
+    var r = await fetch('/api/admin/uploads', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'image/jpeg' }, body: blob });
+    if (r.status === 401) { showAuth(); blUploading--; return; }
+    var j = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(j.error || 'upload');
+    d.thumbnail = j.file;
+    blDrafts[id] = d;
+    if (blSel === id) renderBlThumb();
+    if (msg && blSel === id) msg.textContent = '';
+  } catch (err) {
+    if (msg && blSel === id) msg.textContent = '올리지 못했어요. (JPG·PNG 사진을 사용해 주세요)';
+  }
+  blUploading--;
+}
+
+$('blEditor').addEventListener('click', function (e) {
+  var ctl = e.target.closest('.rv-ph button');
+  if (ctl) {
+    var d = readBlForm();
+    d.thumbnail = '';
+    blDrafts[blSel] = d;
+    renderBlThumb();
+    return;
+  }
+  if (e.target.closest('#bl-save')) saveBlog();
+  else if (e.target.closest('#bl-del')) {
+    armOrRun($('bl-del'), '삭제', '한 번 더 누르면 삭제돼요', function () {
+      api('DELETE', '/api/admin/blog/' + blSel).then(function () {
+        delete blDrafts[blSel];
+        blSel = null;
+        return loadBlog();
+      }).catch(function () {});
+    });
+  }
+});
+
+function saveBlog() {
+  var d = readBlForm();
+  var msg = $('bl-saved');
+  if (blUploading) { msg.style.color = 'var(--danger)'; msg.textContent = '썸네일을 올리는 중이에요. 잠시 후 저장해 주세요.'; return; }
+  if (!d.title.trim()) { msg.style.color = 'var(--danger)'; msg.textContent = '제목을 입력해 주세요.'; $('bl-title').focus(); return; }
+  if (!/^https?:\/\//i.test(d.url.trim())) { msg.style.color = 'var(--danger)'; msg.textContent = 'https:// 로 시작하는 링크 주소를 입력해 주세요.'; $('bl-url').focus(); return; }
+  var btn = $('bl-save');
+  btn.disabled = true;
+  btn.textContent = '저장 중…';
+  msg.style.color = '';
+  msg.textContent = '';
+  var isNew = blSel === 'new';
+  var payload = { title: d.title, url: d.url, thumbnail: d.thumbnail, published: d.published };
+  api(isNew ? 'POST' : 'PUT', isNew ? '/api/admin/blog' : '/api/admin/blog/' + blSel, payload).then(function (j) {
+    delete blDrafts[blSel];
+    blSel = j.item.id;
+    return loadBlog().then(function () {
+      var m = $('bl-saved');
+      if (m) { m.textContent = '✓ 저장했어요'; setTimeout(function () { var x = $('bl-saved'); if (x) x.textContent = ''; }, 6000); }
+    });
+  }).catch(function (err) {
+    var m = $('bl-saved');
+    if (m) { m.style.color = 'var(--danger)'; m.textContent = (err && err.message) || '저장하지 못했어요. 다시 시도해 주세요.'; }
+    var b = $('bl-save');
+    if (b) { b.disabled = false; b.textContent = '저장'; }
+  });
+}
+
+/* ---------- branch locations ---------- */
+
+function loadBranches() {
+  return api('GET', '/api/admin/branches').then(function (j) {
+    branches = j.items || [];
+    brLoaded = true;
+    if (brSel === null && branches.length) brSel = branches[0].id;
+    renderBrList();
+    renderBrEditor();
+  });
+}
+
+function brBlank() { return { region: '', name: '', address: '', bizNo: '', map: '', description: '', published: true }; }
+
+function brDraftFor(id) {
+  if (brDrafts[id]) return brDrafts[id];
+  if (id === 'new') return brBlank();
+  var item = branches.find(function (r) { return r.id === id; });
+  if (!item) return brBlank();
+  return { region: item.region, name: item.name, address: item.address, bizNo: item.bizNo, map: item.map, description: item.description, published: item.published };
+}
+
+function renderBrList() {
+  $('menu-branches').textContent = branches.length;
+  var rows = [];
+  if (brSel === 'new') rows.push('<div class="qa-row selected" data-id="new"><span class="qa-n">+</span><span class="qa-t">새 지점 (작성 중)</span></div>');
+  branches.forEach(function (it, i) {
+    var label = esc(it.region) + (it.name ? ' · ' + esc(it.name) : ' · (안내 문구만)');
+    rows.push('<div class="qa-row' + (it.id === brSel ? ' selected' : '') + '" data-id="' + it.id + '"><span class="qa-n">' + (i + 1) + '</span>' +
+      '<span class="qa-t">' + label + (it.published ? '' : ' <span class="off">비공개</span>') + '</span>' +
+      '<span class="qa-mv"><button type="button" data-mv="up" aria-label="위로">▲</button><button type="button" data-mv="down" aria-label="아래로">▼</button></span></div>');
+  });
+  $('brList').innerHTML = rows.length ? rows.join('') : '<div class="rv-empty-list">아직 등록한 지점이 없어요. “새 지점 추가”를 눌러 시작하세요.</div>';
+}
+
+function renderBrEditor() {
+  if (brSel === null) {
+    $('brEditor').innerHTML = '<div class="rv-empty-list">왼쪽에서 지점을 고르거나 “새 지점 추가”를 눌러 주세요.</div>';
+    return;
+  }
+  var d = brDraftFor(brSel);
+  var isNew = brSel === 'new';
+  $('brEditor').innerHTML =
+    '<div class="ce-head"><h3>' + (isNew ? '새 지점 추가' : '지점 수정') + '</h3>' +
+      (!isNew && d.published ? '<a href="/locations" target="_blank" rel="noopener">홈페이지에서 보기</a>' : '') + '</div>' +
+    '<div class="field"><label for="br-region">지사<span class="ce-hint">예) 서울 지사 · 같은 이름끼리 묶여서 나와요</span></label><input id="br-region" type="text" maxlength="40" value="' + esc(d.region) + '" placeholder="예) 서울 지사"></div>' +
+    '<div class="field"><label for="br-name">지점명<span class="ce-hint">지점이 아직 없는 지사라면 비워 두고 아래 소개에 "(추가 예정)"처럼 적어요</span></label><input id="br-name" type="text" maxlength="60" value="' + esc(d.name) + '" placeholder="예) 논현점"></div>' +
+    '<div class="field"><label for="br-address">주소</label><input id="br-address" type="text" maxlength="200" value="' + esc(d.address) + '" placeholder="예) 서울특별시 강남구 논현로 123"></div>' +
+    '<div class="field-row"><div class="field"><label for="br-bizno">사업자등록번호</label><span class="ce-hint">숫자와 - 만</span><input id="br-bizno" type="text" maxlength="20" value="' + esc(d.bizNo) + '" placeholder="123-45-67890"></div>' +
+      '<div class="field"><label for="br-map">네이버 지도 링크</label><span class="ce-hint">넣으면 "네이버 지도에서 보기" 버튼이 생겨요</span><input id="br-map" type="text" maxlength="500" value="' + esc(d.map) + '" placeholder="https://map.naver.com/..."></div></div>' +
+    '<div class="field"><label for="br-desc">소개</label><input id="br-desc" type="text" maxlength="300" value="' + esc(d.description) + '" placeholder="예) 출장열쇠수리 번호키 금고태양문"></div>' +
+    '<label class="rv-pub"><input type="checkbox" id="br-pub"' + (d.published ? ' checked' : '') + '> 홈페이지에 공개</label>' +
+    '<div class="ce-actions">' + (isNew ? '' : '<button type="button" class="btn-ghost" id="br-del">삭제</button>') +
+      '<span class="spacer"></span><span class="ce-saved" id="br-saved"></span><button type="button" class="btn-primary" id="br-save">저장</button></div>' +
+    '<div class="ce-note">순서는 왼쪽 목록의 ▲▼ 버튼으로 바꿔요. 지사 이름이 같으면 "지점 위치" 페이지와 푸터에서 한 그룹으로 묶여요.</div>';
+}
+
+function readBrForm() {
+  var d = brDraftFor(brSel);
+  d.region = $('br-region').value;
+  d.name = $('br-name').value;
+  d.address = $('br-address').value;
+  d.bizNo = $('br-bizno').value;
+  d.map = $('br-map').value;
+  d.description = $('br-desc').value;
+  d.published = $('br-pub').checked;
+  brDrafts[brSel] = d;
+  return d;
+}
+
+function selectBranch(id) {
+  if ($('br-region')) readBrForm();
+  brSel = id;
+  renderBrList();
+  renderBrEditor();
+}
+
+$('brNew').addEventListener('click', function () { selectBranch('new'); $('br-region').focus(); });
+
+$('brList').addEventListener('click', function (e) {
+  var row = e.target.closest('.qa-row');
+  if (!row) return;
+  var id = row.getAttribute('data-id');
+  var mv = e.target.closest('[data-mv]');
+  if (mv && id !== 'new') {
+    e.stopPropagation();
+    api('POST', '/api/admin/branches/' + id + '/move', { dir: mv.getAttribute('data-mv') }).then(function (j) {
+      branches = j.items || [];
+      renderBrList();
+    }).catch(function () {});
+    return;
+  }
+  selectBranch(id === 'new' ? 'new' : Number(id));
+});
+
+$('brEditor').addEventListener('input', function (e) { if (e.target.id && e.target.id.indexOf('br-') === 0) readBrForm(); });
+$('brEditor').addEventListener('change', function (e) { if (e.target.id === 'br-pub') readBrForm(); });
+
+$('brEditor').addEventListener('click', function (e) {
+  if (e.target.closest('#br-save')) saveBranch();
+  else if (e.target.closest('#br-del')) {
+    armOrRun($('br-del'), '삭제', '한 번 더 누르면 삭제돼요', function () {
+      api('DELETE', '/api/admin/branches/' + brSel).then(function () {
+        delete brDrafts[brSel];
+        brSel = null;
+        return loadBranches();
+      }).catch(function () {});
+    });
+  }
+});
+
+function saveBranch() {
+  var d = readBrForm();
+  var msg = $('br-saved');
+  if (!d.region.trim()) { msg.style.color = 'var(--danger)'; msg.textContent = '지사 이름을 입력해 주세요.'; $('br-region').focus(); return; }
+  if (!d.name.trim() && !d.description.trim()) { msg.style.color = 'var(--danger)'; msg.textContent = '지점 이름 또는 안내 문구 중 하나는 입력해 주세요.'; $('br-name').focus(); return; }
+  var btn = $('br-save');
+  btn.disabled = true;
+  btn.textContent = '저장 중…';
+  msg.style.color = '';
+  msg.textContent = '';
+  var isNew = brSel === 'new';
+  var payload = { region: d.region, name: d.name, address: d.address, bizNo: d.bizNo, map: d.map, description: d.description, published: d.published };
+  api(isNew ? 'POST' : 'PUT', isNew ? '/api/admin/branches' : '/api/admin/branches/' + brSel, payload).then(function (j) {
+    delete brDrafts[brSel];
+    brSel = j.item.id;
+    return loadBranches().then(function () {
+      var m = $('br-saved');
+      if (m) { m.textContent = '✓ 저장했어요'; setTimeout(function () { var x = $('br-saved'); if (x) x.textContent = ''; }, 6000); }
+    });
+  }).catch(function (err) {
+    var m = $('br-saved');
+    if (m) { m.style.color = 'var(--danger)'; m.textContent = (err && err.message) || '저장하지 못했어요. 다시 시도해 주세요.'; }
+    var b = $('br-save');
+    if (b) { b.disabled = false; b.textContent = '저장'; }
+  });
+}
+
 /* ---------- site settings ---------- */
 
 function loadSite() {
@@ -983,6 +1307,11 @@ function stField(id, label, value, placeholder, hint, max) {
     '<input id="' + id + '" type="text" maxlength="' + (max || 200) + '" value="' + esc(value) + '" placeholder="' + esc(placeholder) + '"></div>';
 }
 
+function stTextarea(id, label, value, placeholder, hint, max, rows) {
+  return '<div class="field"><label for="' + id + '">' + label + (hint ? '<span class="ce-hint">' + hint + '</span>' : '') + '</label>' +
+    '<textarea id="' + id + '" rows="' + (rows || 3) + '" maxlength="' + (max || 200) + '" placeholder="' + esc(placeholder) + '">' + esc(value) + '</textarea></div>';
+}
+
 function stCheck(id, label, checked) {
   return '<label class="st-check"><input type="checkbox" id="' + id + '"' + (checked ? ' checked' : '') + '> ' + label + '</label>';
 }
@@ -992,9 +1321,9 @@ function renderSite() {
   var d = siteData.defaults;
   $('siteEditor').innerHTML =
     '<div class="st-sec"><h3>첫 화면 배너</h3><div class="st-sub">홈 맨 위 큰 제목과 설명이에요. 첫 줄은 파란색으로 나와요.</div>' +
-      stField('st-l1', '제목 첫 줄 (파란색)', c.hero.l1, d.hero.l1, '', 40) +
-      stField('st-l2', '제목 둘째 줄', c.hero.l2, d.hero.l2, '', 40) +
-      stField('st-sub', '설명', c.hero.sub, d.hero.sub, '', 160) + '</div>' +
+      stTextarea('st-l1', '제목 첫 줄 (파란색)', c.hero.l1, d.hero.l1, '줄바꿈이 그대로 나와요', 60, 2) +
+      stTextarea('st-l2', '제목 둘째 줄', c.hero.l2, d.hero.l2, '줄바꿈이 그대로 나와요', 60, 2) +
+      stTextarea('st-sub', '설명', c.hero.sub, d.hero.sub, '줄바꿈이 그대로 나와요', 160, 3) + '</div>' +
     '<div class="st-sec"><h3>연락처</h3><div class="st-sub">전화 버튼, 하단 고정 버튼, 푸터에 모두 반영돼요.</div>' +
       '<div class="field-row">' + stField('st-phone', '전화번호', c.phone, d.phone, '숫자와 - 만', 20) +
       stField('st-hours', '영업시간 문구', c.hours, d.hours, '', 60) + '</div></div>' +
