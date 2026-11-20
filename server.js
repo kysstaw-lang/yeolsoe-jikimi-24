@@ -266,8 +266,9 @@ const q = {
   blogUpdate: db.prepare(`UPDATE blog_links SET title = @title, url = @url, thumbnail = @thumbnail, published = @published, updated_at = @updated_at WHERE id = @id`),
   blogDelete: db.prepare('DELETE FROM blog_links WHERE id = ?'),
   blogInsertSynced: db.prepare(`INSERT INTO blog_links (title, url, thumbnail, published, source, naver_log_no, created_at, updated_at)
-    VALUES (@title, @url, '', 1, 'naver', @log_no, @created_at, @updated_at)`),
+    VALUES (@title, @url, @thumbnail, 1, 'naver', @log_no, @created_at, @updated_at)`),
   blogHasLogNo: db.prepare('SELECT 1 FROM blog_links WHERE naver_log_no = ? LIMIT 1'),
+  blogSetThumbByLogNo: db.prepare(`UPDATE blog_links SET thumbnail = ? WHERE naver_log_no = ? AND thumbnail = ''`),
   naverExcludedHas: db.prepare('SELECT 1 FROM naver_excluded WHERE log_no = ? LIMIT 1'),
   naverExclude: db.prepare('INSERT OR IGNORE INTO naver_excluded (log_no, excluded_at) VALUES (?, ?)'),
   branchesAll: db.prepare('SELECT * FROM branches ORDER BY sort_order, id'),
@@ -463,9 +464,10 @@ function productInput(body, prevPhotos) {
 }
 
 function rowToBlog(row) {
+  const thumb = row.thumbnail || '';
   return {
     id: row.id, title: row.title, url: row.url,
-    thumbnail: row.thumbnail && PHOTO_RE.test(row.thumbnail) ? row.thumbnail : '',
+    thumbnail: PHOTO_RE.test(thumb) || /^https:\/\//i.test(thumb) ? thumb : '',
     published: !!row.published,
     source: row.source || 'manual', naverLogNo: row.naver_log_no || '',
   };
@@ -494,10 +496,11 @@ async function syncNaverBlog() {
   try {
     const posts = await fetchNaverBlogPosts(blogId);
     result.total = posts.length;
+    for (const p of posts) if (p.thumbnail) q.blogSetThumbByLogNo.run(p.thumbnail, p.logNo); // backfill posts synced before thumbnails were captured
     const fresh = posts.filter((p) => !q.blogHasLogNo.get(p.logNo) && !q.naverExcludedHas.get(p.logNo));
     const now = Date.now();
     for (const p of fresh.reverse()) { // oldest-of-the-batch first, so id DESC still reads newest-first
-      q.blogInsertSynced.run({ title: p.title, url: p.url, log_no: p.logNo, created_at: now, updated_at: now });
+      q.blogInsertSynced.run({ title: p.title, url: p.url, thumbnail: p.thumbnail || '', log_no: p.logNo, created_at: now, updated_at: now });
       result.added++;
     }
   } catch (err) {

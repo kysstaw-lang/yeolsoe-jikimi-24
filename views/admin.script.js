@@ -1068,13 +1068,15 @@ function blDraftFor(id) {
   return { title: item.title, url: item.url, thumbnail: item.thumbnail, published: item.published };
 }
 
+function blThumbSrc(t) { return /^https:\/\//i.test(t) ? t : '/uploads/' + esc(t); }
+
 function renderBlList() {
   $('menu-blog').textContent = blog.length;
   var rows = [];
   if (blSel === 'new') rows.push('<button type="button" class="rv-item selected" data-id="new"><span class="th"></span><span class="tx"><div class="t">새 글</div><div class="d">작성 중</div></span></button>');
   blog.forEach(function (r) {
     rows.push('<button type="button" class="rv-item' + (r.id === blSel ? ' selected' : '') + '" data-id="' + r.id + '">' +
-      '<span class="th">' + (r.thumbnail ? '<img src="/uploads/' + esc(r.thumbnail) + '" alt="">' : '') + '</span>' +
+      '<span class="th">' + (r.thumbnail ? '<img src="' + blThumbSrc(r.thumbnail) + '" alt="">' : '') + '</span>' +
       '<span class="tx"><div class="t">' + esc(r.title) + (r.source === 'naver' ? ' <span class="bl-src">네이버</span>' : '') + '</div>' +
       '<div class="d">' + esc(r.url) + (r.published ? '' : ' · <span class="off">비공개</span>') + '</div></span></button>');
   });
@@ -1084,7 +1086,7 @@ function renderBlList() {
 function renderBlThumb() {
   var d = blDraftFor(blSel);
   var html = d.thumbnail
-    ? '<div class="rv-ph" data-f="' + esc(d.thumbnail) + '"><img src="/uploads/' + esc(d.thumbnail) + '" alt="">' +
+    ? '<div class="rv-ph" data-f="' + esc(d.thumbnail) + '"><img src="' + blThumbSrc(d.thumbnail) + '" alt="">' +
       '<div class="ctl"><button type="button" data-act="del" aria-label="삭제">✕</button></div></div>'
     : '<label class="rv-add">+ 썸네일<br>추가<input type="file" id="bl-file" accept="image/*" hidden></label>';
   $('bl-thumb').innerHTML = html;
