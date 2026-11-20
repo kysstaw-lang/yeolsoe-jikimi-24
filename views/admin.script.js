@@ -991,15 +991,72 @@ function saveProduct() {
 
 /* ---------- blog links ---------- */
 
+var blNaverId = '';
+var blLastSync = null;
+var blSyncing = false;
+
 function loadBlog() {
   return api('GET', '/api/admin/blog').then(function (j) {
     blog = j.items || [];
     blLoaded = true;
+    blNaverId = j.naverBlogId || '';
+    blLastSync = j.naverLastSync || null;
     if (blSel === null && blog.length) blSel = blog[0].id;
+    renderBlNaverBox();
     renderBlList();
     renderBlEditor();
   });
 }
+
+function blSyncStatusText() {
+  if (blSyncing) return '가져오는 중…';
+  if (!blNaverId) return '블로그 아이디를 넣고 저장하면 새 글을 자동으로 가져와요. 몇 분마다 자동으로 확인해요.';
+  if (!blLastSync) return '아직 가져온 적 없어요.';
+  var when = new Date(blLastSync.at).toLocaleString('ko-KR');
+  if (blLastSync.error) return when + ' · 가져오기 실패: ' + blLastSync.error;
+  return when + ' · 새 글 ' + blLastSync.added + '개 추가 (확인한 글 ' + blLastSync.total + '개)';
+}
+
+function renderBlNaverBox() {
+  $('blNaverBox').innerHTML =
+    '<h4>네이버 블로그 자동 가져오기</h4>' +
+    '<div class="st-sub">여기 쓰신 블로그에 새 글을 올리면 몇 분 안에 자동으로 "블로그" 목록에 추가돼요(네이버가 실시간으로 알려주지는 않아서, 완전히 동시는 아니에요). 지우면 목록에서 제외되고, 다시 가져와지지 않아요.</div>' +
+    '<div class="bl-naver-row">' +
+      '<input id="bl-naver-id" type="text" maxlength="100" value="' + esc(blNaverId) + '" placeholder="네이버 블로그 아이디 (예: example123)">' +
+      '<button type="button" class="btn-ghost" id="bl-naver-save">저장</button>' +
+      '<button type="button" class="btn-ghost" id="bl-naver-sync"' + (blNaverId ? '' : ' disabled') + '>지금 가져오기</button>' +
+    '</div>' +
+    '<div class="bl-naver-status" id="bl-naver-status">' + esc(blSyncStatusText()) + '</div>';
+}
+
+$('blNaverBox').addEventListener('click', function (e) {
+  if (e.target.closest('#bl-naver-save')) {
+    var val = $('bl-naver-id').value;
+    var btn = $('bl-naver-save');
+    btn.disabled = true;
+    api('PUT', '/api/admin/blog-naver', { blogId: val }).then(function () {
+      return loadBlog();
+    }).catch(function (err) {
+      var s = $('bl-naver-status');
+      if (s) s.textContent = (err && err.message) || '저장하지 못했어요.';
+    }).then(function () {
+      var b = $('bl-naver-save');
+      if (b) b.disabled = false;
+    });
+  } else if (e.target.closest('#bl-naver-sync')) {
+    blSyncing = true;
+    renderBlNaverBox();
+    api('POST', '/api/admin/blog-naver/sync', {}).then(function () {
+      blSyncing = false;
+      return loadBlog();
+    }).catch(function (err) {
+      blSyncing = false;
+      renderBlNaverBox();
+      var s = $('bl-naver-status');
+      if (s) s.textContent = (err && err.message) || '가져오지 못했어요.';
+    });
+  }
+});
 
 function blBlank() { return { title: '', url: '', thumbnail: '', published: true }; }
 
@@ -1018,7 +1075,8 @@ function renderBlList() {
   blog.forEach(function (r) {
     rows.push('<button type="button" class="rv-item' + (r.id === blSel ? ' selected' : '') + '" data-id="' + r.id + '">' +
       '<span class="th">' + (r.thumbnail ? '<img src="/uploads/' + esc(r.thumbnail) + '" alt="">' : '') + '</span>' +
-      '<span class="tx"><div class="t">' + esc(r.title) + '</div><div class="d">' + esc(r.url) + (r.published ? '' : ' · <span class="off">비공개</span>') + '</div></span></button>');
+      '<span class="tx"><div class="t">' + esc(r.title) + (r.source === 'naver' ? ' <span class="bl-src">네이버</span>' : '') + '</div>' +
+      '<div class="d">' + esc(r.url) + (r.published ? '' : ' · <span class="off">비공개</span>') + '</div></span></button>');
   });
   $('blList').innerHTML = rows.length ? rows.join('') : '<div class="rv-empty-list">아직 등록한 글이 없어요. “새 글 추가”를 눌러 시작하세요.</div>';
 }

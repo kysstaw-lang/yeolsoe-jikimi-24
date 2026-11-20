@@ -14,6 +14,7 @@ const SEED_QA = require('./lib/seed-qa');
 const { notifyInquiry } = require('./lib/sms');
 const { parseBranches, DEFAULT_BRANCHES_TEXT } = require('./lib/branches');
 const { buildLlms } = require('./lib/llms');
+const { parseBlogId, fetchNaverBlogPosts } = require('./lib/naver-blog');
 
 const PROD = process.env.NODE_ENV === 'production';
 const PORT = Number(process.env.PORT) || 3000;
@@ -218,6 +219,17 @@ const contentCols = new Set(db.prepare('PRAGMA table_info(area_content)').all().
 for (const col of ['intro_en', 'headline_en', 'body_en', 'description_en']) {
   if (!contentCols.has(col)) db.exec(`ALTER TABLE area_content ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
 }
+const blogCols = new Set(db.prepare('PRAGMA table_info(blog_links)').all().map((c) => c.name));
+for (const col of ["source TEXT NOT NULL DEFAULT 'manual'", "naver_log_no TEXT NOT NULL DEFAULT ''"]) {
+  const name = col.split(' ')[0];
+  if (!blogCols.has(name)) db.exec(`ALTER TABLE blog_links ADD COLUMN ${col}`);
+}
+db.exec(`
+  CREATE TABLE IF NOT EXISTS naver_excluded (
+    log_no TEXT PRIMARY KEY,
+    excluded_at INTEGER NOT NULL
+  );
+`);
 db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('service_areas', ?)").run(JSON.stringify(['강남구']));
 
 const STATUSES = ['신규', '연락함', '완료'];
@@ -253,6 +265,11 @@ const q = {
     VALUES (@title, @url, @thumbnail, @published, @created_at, @updated_at)`),
   blogUpdate: db.prepare(`UPDATE blog_links SET title = @title, url = @url, thumbnail = @thumbnail, published = @published, updated_at = @updated_at WHERE id = @id`),
   blogDelete: db.prepare('DELETE FROM blog_links WHERE id = ?'),
+  blogInsertSynced: db.prepare(`INSERT INTO blog_links (title, url, thumbnail, published, source, naver_log_no, created_at, updated_at)
+    VALUES (@title, @url, '', 1, 'naver', @log_no, @created_at, @updated_at)`),
+  blogHasLogNo: db.prepare('SELECT 1 FROM blog_links WHERE naver_log_no = ? LIMIT 1'),
+  naverExcludedHas: db.prepare('SELECT 1 FROM naver_excluded WHERE log_no = ? LIMIT 1'),
+  naverExclude: db.prepare('INSERT OR IGNORE INTO naver_excluded (log_no, excluded_at) VALUES (?, ?)'),
   branchesAll: db.prepare('SELECT * FROM branches ORDER BY sort_order, id'),
   branchesPublished: db.prepare('SELECT * FROM branches WHERE published = 1 ORDER BY sort_order, id'),
   branchById: db.prepare('SELECT * FROM branches WHERE id = ?'),
@@ -450,6 +467,7 @@ function rowToBlog(row) {
     id: row.id, title: row.title, url: row.url,
     thumbnail: row.thumbnail && PHOTO_RE.test(row.thumbnail) ? row.thumbnail : '',
     published: !!row.published,
+    source: row.source || 'manual', naverLogNo: row.naver_log_no || '',
   };
 }
 
@@ -462,6 +480,31 @@ function blogInput(body, prevThumbnail) {
     ? body.thumbnail
     : (prevThumbnail || '');
   return { title, url, thumbnail, published: body.published === false ? 0 : 1 };
+}
+
+/**
+ * Pull the newest posts from the configured Naver blog and add any we haven't seen yet.
+ * Skips posts the admin deliberately deleted (recorded in naver_excluded) so they don't come back.
+ * Resolves to { added, total, error } and never throws - callers (startup timer, admin button) can ignore failures.
+ */
+async function syncNaverBlog() {
+  const result = { added: 0, total: 0, error: null };
+  const blogId = parseBlogId((q.getSetting.get('naver_blog_id') || {}).value || '');
+  if (!blogId) { result.error = 'not-configured'; return result; }
+  try {
+    const posts = await fetchNaverBlogPosts(blogId);
+    result.total = posts.length;
+    const fresh = posts.filter((p) => !q.blogHasLogNo.get(p.logNo) && !q.naverExcludedHas.get(p.logNo));
+    const now = Date.now();
+    for (const p of fresh.reverse()) { // oldest-of-the-batch first, so id DESC still reads newest-first
+      q.blogInsertSynced.run({ title: p.title, url: p.url, log_no: p.logNo, created_at: now, updated_at: now });
+      result.added++;
+    }
+  } catch (err) {
+    result.error = err.message;
+  }
+  q.putSetting.run('naver_blog_last_sync', JSON.stringify({ at: Date.now(), added: result.added, total: result.total, error: result.error }));
+  return result;
 }
 
 function rowToBranch(row) {
@@ -1089,7 +1132,25 @@ async function handle(req, res) {
     }
 
     if (method === 'GET' && p === '/api/admin/blog') {
-      return sendJson(res, 200, { items: q.blogAll.all().map(rowToBlog) });
+      const lastSyncRaw = q.getSetting.get('naver_blog_last_sync');
+      let lastSync = null;
+      try { lastSync = lastSyncRaw ? JSON.parse(lastSyncRaw.value) : null; } catch (e) { /* ignore */ }
+      return sendJson(res, 200, {
+        items: q.blogAll.all().map(rowToBlog),
+        naverBlogId: (q.getSetting.get('naver_blog_id') || {}).value || '',
+        naverLastSync: lastSync,
+      });
+    }
+    if (method === 'PUT' && p === '/api/admin/blog-naver') {
+      const body = await readJson(req);
+      const raw = str(body.blogId, 100);
+      if (raw && !parseBlogId(raw)) return sendJson(res, 400, { error: '블로그 아이디를 확인할 수 없어요. 예) example123' });
+      q.putSetting.run('naver_blog_id', raw ? parseBlogId(raw) : '');
+      return sendJson(res, 200, { ok: true });
+    }
+    if (method === 'POST' && p === '/api/admin/blog-naver/sync') {
+      const result = await syncNaverBlog();
+      return sendJson(res, 200, result);
     }
     if (method === 'POST' && p === '/api/admin/blog') {
       const input = blogInput(await readJson(req));
@@ -1114,6 +1175,7 @@ async function handle(req, res) {
       if (method === 'DELETE') {
         q.blogDelete.run(id);
         if (prev.thumbnail) removeUpload(prev.thumbnail);
+        if (prev.source === 'naver' && prev.naverLogNo) q.naverExclude.run(prev.naverLogNo, Date.now());
         return sendJson(res, 200, { ok: true });
       }
     }
@@ -1240,5 +1302,9 @@ const server = http.createServer((req, res) => {
 
 cleanOrphanUploads();
 setInterval(cleanOrphanUploads, 6 * 60 * 60 * 1000).unref();
+
+syncNaverBlog().catch(() => {});
+// Naver doesn't notify outside sites when a post goes up, so this polls - every few minutes is as close to "at the same time" as that allows.
+setInterval(() => syncNaverBlog().catch(() => {}), 3 * 60 * 1000).unref();
 
 server.listen(PORT, () => console.log(`열쇠지킴이 24시 listening on :${PORT}`));
