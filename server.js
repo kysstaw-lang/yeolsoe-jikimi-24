@@ -721,7 +721,7 @@ const SECURITY_HEADERS = {
   'Referrer-Policy': 'same-origin',
   'Content-Security-Policy':
     "default-src 'self'; script-src 'self' 'unsafe-inline'" + (SITE.metaPixelId ? ' https://connect.facebook.net' : '') + "; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-    "font-src https://fonts.gstatic.com; img-src 'self' data: blob:" + (SITE.metaPixelId ? ' https://www.facebook.com' : '') + "; connect-src 'self'" + (SITE.metaPixelId ? ' https://www.facebook.com https://connect.facebook.net' : '') + "; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    "font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.pstatic.net" + (SITE.metaPixelId ? ' https://www.facebook.com' : '') + "; connect-src 'self'" + (SITE.metaPixelId ? ' https://www.facebook.com https://connect.facebook.net' : '') + "; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
 };
 
 function send(res, status, body, headers) {
